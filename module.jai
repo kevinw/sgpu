@@ -1,18 +1,18 @@
 #module_parameters(VALIDATION := false);
 
-Gpu_Pipeline :: #type,distinct u64;
+Gpu_Pipeline :: #type,distinct s64;
 
-Gpu_Texture :: #type,distinct u64;
+Gpu_Texture :: #type,distinct s64;
 
-Gpu_Depth_Stencil_State :: #type,distinct u64;
+Gpu_Depth_Stencil_State :: #type,distinct s64;
 
-Gpu_Blend_State :: #type,distinct u64;
+Gpu_Blend_State :: #type,distinct s64;
 
-Gpu_Queue :: #type,distinct u64;
+Gpu_Queue :: #type,distinct s64;
 
-Gpu_Command_Buffer :: #type,distinct u64;
+Gpu_Command_Buffer :: #type,distinct s64;
 
-Gpu_Semaphore :: #type,distinct u64;
+Gpu_Semaphore :: #type,distinct s64;
 
 Cull :: enum {
     NONE;
@@ -282,15 +282,39 @@ gpu_get_queue :: (queue_type: Gpu_Queue_Type, queue_index: u32) -> Gpu_Queue {
 // ----------------------------- Semaphores ------------------------------------
 
 gpu_create_semaphore :: (initial: u64) -> Gpu_Semaphore {
-    return 0;
+    timeline_create_info := VkSemaphoreTypeCreateInfo.{
+        semaphoreType = .TIMELINE,
+        initialValue = initial,
+    };
+    create_info := VkSemaphoreCreateInfo.{
+        pNext = *timeline_create_info,
+    };
+
+    vk_semaphore: VkSemaphore;
+    vk_result := vkCreateSemaphore(vk_device, *create_info, null, *vk_semaphore);
+    assert_vk_result(vk_result);
+
+    handle := pool_add(*live_semaphores, .{vk_semaphore});
+
+    return handle.(Gpu_Semaphore);
 }
 
-gpu_wait_semaphore :: (semaphore: Gpu_Semaphore, value: u64) {
+gpu_wait_semaphore :: (semaphore_handle: Gpu_Semaphore, value: u64) {
+    semaphore := pool_get(*live_semaphores, semaphore_handle);
 
+    wait_info := VkSemaphoreWaitInfo.{
+        semaphoreCount = 1,
+        pSemaphores = *semaphore.vk_semaphore,
+        pValues = *value,
+    };
+    vk_result := vkWaitSemaphores(vk_device, *wait_info, U64_MAX);
+    assert_vk_result(vk_result);
 }
 
-gpu_destroy_semaphore :: (semaphore: Gpu_Semaphore) {
-
+gpu_destroy_semaphore :: (semaphore_handle: Gpu_Semaphore) {
+    removed, semaphore := pool_remove(*live_semaphores, semaphore_handle);
+    assert(removed);
+    vkDestroySemaphore(vk_device, semaphore.vk_semaphore, null);
 }
 
 #load "memory.jai";
@@ -670,6 +694,11 @@ get_queue :: (queue_handle: Gpu_Queue) -> *Queue {
     return *queues[queue_index];
 }
 
+Semaphore :: struct {
+    vk_semaphore: VkSemaphore;
+}
+
+live_semaphores: Pool(Gpu_Semaphore, Semaphore);
 
 MAX_BUFFERS :: 10000;
 MAX_IMAGES  :: 10000;
@@ -714,3 +743,5 @@ vkCmdEndRenderingKHR : PFN_vkCmdEndRenderingKHR;
 #import "Math";
 #import "Bucket_Array";
 #import "Atomics";
+
+#load "pool.jai";

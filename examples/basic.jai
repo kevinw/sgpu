@@ -23,6 +23,13 @@ main :: () {
         gpu_free(gpu_ptr);
     }
 
+    {
+        semaphore := gpu_create_semaphore(0);
+
+        gpu_wait_semaphore(semaphore, 0);
+        gpu_destroy_semaphore(semaphore);
+    }
+
     main_queue := gpu_get_queue(.MAIN, 0);
     c1_queue := gpu_get_queue(.COMPUTE, 0);
     c2_queue := gpu_get_queue(.COMPUTE, 1);
