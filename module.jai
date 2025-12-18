@@ -207,6 +207,18 @@ gpu_init :: () {
 }
 
 gpu_shutdown :: () {
+    vkDeviceWaitIdle(vk_device);
+
+    for queues {
+        vkDestroyCommandPool(vk_device, it.cmd_pool, null);
+    }
+
+    #if VALIDATION {
+        vkDestroyDebugReportCallbackEXT: PFN_vkDestroyDebugReportCallbackEXT = xx vkGetInstanceProcAddr(vk_instance, "vkDestroyDebugReportCallbackEXT");
+        if vkDestroyDebugReportCallbackEXT != null {
+            vkDestroyDebugReportCallbackEXT(vk_instance, vk_debug_callback_handle, null);
+        }
+    }
     vmaDestroyAllocator(vma);
     vkDestroyDevice(vk_device, null);
     vkDestroyInstance(vk_instance, null);
@@ -245,6 +257,9 @@ gpu_free_pipeline :: (pipeline: Gpu_Pipeline) {
 // ----------------------------- Queues ------------------------------------
 
 gpu_get_queue :: (queue_type: Gpu_Queue_Type, queue_index: u32) -> Gpu_Queue {
+    for queues {
+        if it.queue_type == queue_type && it.index == queue_index then return (it_index + 1).(Gpu_Queue);
+    }
     return 0;
 }
 
@@ -621,10 +636,21 @@ create_device :: () {
                 vkGetDeviceQueue(vk_device, it.queueFamilyIndex, queue_index_in_family, *queues[queue_index].queue);
                 assert(queues[queue_index].queue != VK_NULL_HANDLE);
                 queues[queue_index].family = it.queueFamilyIndex;
-                queues[queue_index].index = queue_index_in_family;
                 queue_index += 1;
             }
             all_queue_family_indices[it_index] = it.queueFamilyIndex;
+        }
+
+
+        // allocate command pools for each queue
+        for * queues {
+            create_info := VkCommandPoolCreateInfo.{
+                flags = .TRANSIENT_BIT,
+                queueFamilyIndex = it.family,
+            };
+
+            vk_result := vkCreateCommandPool(vk_device, *create_info, null, *it.cmd_pool);
+            assert_vk_result(vk_result);
         }
     }
 
@@ -663,13 +689,26 @@ Queue :: struct {
     queue: VkQueue;
     family: u32;
     index: u32;
+    type: Gpu_Queue_Type;
+
+    // each queue has its own individual command pool.
+    cmd_pool: VkCommandPool;
 }
 
-queues: [1 + 4 + 2] Queue;
+queues := Queue.[
+    .{type = .MAIN, index = 0},
+    .{type = .COMPUTE, index = 0},
+    .{type = .COMPUTE, index = 1},
+    .{type = .COMPUTE, index = 2},
+    .{type = .COMPUTE, index = 3},
+    .{type = .TRANSFER, index = 0},
+    .{type = .TRANSFER, index = 1},
+];
+
 all_queue_family_indices: [3] u32;
 
 MAX_BUFFERS :: 10000;
-MAX_IMAGES :: 10000;
+MAX_IMAGES  :: 10000;
 
 MAX_COMPUTE_QUEUES  :: 4;
 MAX_TRANSFER_QUEUES :: 2;
