@@ -1,3 +1,5 @@
+#module_parameters(VALIDATION := false);
+
 Gpu_Pipeline :: #type,distinct u64;
 
 Gpu_Texture :: #type,distinct u64;
@@ -350,6 +352,10 @@ create_instance :: () {
 
     // find extensions
     enabled_extensions: [..] *u8;
+    #if VALIDATION {
+        array_add(*enabled_extensions, VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+        array_add(*enabled_extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
     {
         count: u32;
         result = vkEnumerateInstanceExtensionProperties(null, *count, null);
@@ -380,9 +386,46 @@ create_instance :: () {
     create_info.pApplicationInfo = *app_info;
     create_info.enabledExtensionCount = enabled_extensions.count.(u32);
     create_info.ppEnabledExtensionNames = enabled_extensions.data;
+    #if VALIDATION {
+        create_info.enabledLayerCount = 1;
+        create_info.ppEnabledLayerNames = (*u8).["VK_LAYER_KHRONOS_validation"].data;
+
+        enabled_validation_features := VkValidationFeatureEnableEXT.[
+            //.GPU_ASSISTED_EXT,
+            //.GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+        ];
+
+        validation_features := VkValidationFeaturesEXT.{
+            enabledValidationFeatureCount = enabled_validation_features.count,
+            pEnabledValidationFeatures  = enabled_validation_features.data,
+        };
+
+        debug_messenger_create_info := VkDebugUtilsMessengerCreateInfoEXT.{
+            messageSeverity = .WARNING_BIT_EXT | .ERROR_BIT_EXT,
+            messageType = .GENERAL_BIT_EXT | .VALIDATION_BIT_EXT | .PERFORMANCE_BIT_EXT,
+            pfnUserCallback = vk_debug_callback,
+            pUserData = null,
+            pNext = *validation_features,
+        };
+
+        create_info.pNext = *debug_messenger_create_info;
+    }
 
     result = vkCreateInstance(*create_info, null, *vk_instance);
     assert_vk_result(result);
+
+    #if VALIDATION {
+        vkCreateDebugReportCallbackEXT: PFN_vkCreateDebugReportCallbackEXT = xx vkGetInstanceProcAddr(vk_instance, "vkCreateDebugReportCallbackEXT");
+
+        if vkCreateDebugReportCallbackEXT {
+            debug_callback_create_info: VkDebugReportCallbackCreateInfoEXT;
+            debug_callback_create_info.flags |= .ERROR_BIT_EXT;
+            debug_callback_create_info.flags |= .WARNING_BIT_EXT;
+            debug_callback_create_info.pfnCallback = vk_validation_callback;
+
+            vkCreateDebugReportCallbackEXT(vk_instance, *debug_callback_create_info, null, *vk_debug_callback_handle);
+        }
+    }
 }
 
 create_device :: () {
@@ -508,36 +551,37 @@ create_device :: () {
 
         vk12_features := VkPhysicalDeviceVulkan12Features.{
             pNext = chain,
-            timelineSemaphore = VK_TRUE,
+            bufferDeviceAddress = VK_TRUE,
+            bufferDeviceAddressCaptureReplay = VK_TRUE,
+            descriptorBindingPartiallyBound = VK_TRUE,
+            descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
+            descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+            descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
+            descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE,
+            descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
+            descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE,
+            descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
+            descriptorBindingVariableDescriptorCount = VK_TRUE,
             descriptorIndexing = VK_TRUE,
+            runtimeDescriptorArray = VK_TRUE,
+            scalarBlockLayout = VK_TRUE,
+            shaderBufferInt64Atomics = VK_TRUE,
+            shaderFloat16 = VK_TRUE,
             shaderInputAttachmentArrayDynamicIndexing = VK_TRUE,
-            shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
-            shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
-            shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+            shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
+            shaderInt8 = VK_TRUE,
             shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
             shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
             shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
-            shaderInputAttachmentArrayNonUniformIndexing = VK_TRUE,
-            shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
+            shaderStorageTexelBufferArrayDynamicIndexing = VK_TRUE,
             shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE,
-            descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
-            descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
-            descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
-            descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
-            descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE,
-            descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE,
-            descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
-            descriptorBindingPartiallyBound = VK_TRUE,
-            descriptorBindingVariableDescriptorCount = VK_TRUE,
-            runtimeDescriptorArray = VK_TRUE,
-            bufferDeviceAddress = VK_TRUE,
+            shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+            shaderUniformTexelBufferArrayDynamicIndexing = VK_TRUE,
+            shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE,
             storageBuffer8BitAccess = VK_TRUE,
-            uniformAndStorageBuffer8BitAccess = VK_TRUE,
             storagePushConstant8 = VK_TRUE,
-            shaderInt8 = VK_TRUE,
-            shaderFloat16 = VK_TRUE,
-            shaderBufferInt64Atomics = VK_TRUE,
-            scalarBlockLayout = VK_TRUE,
+            timelineSemaphore = VK_TRUE,
+            uniformAndStorageBuffer8BitAccess = VK_TRUE,
             vulkanMemoryModel = VK_TRUE,
             vulkanMemoryModelDeviceScope = VK_TRUE,
         };
@@ -632,6 +676,33 @@ MAX_TRANSFER_QUEUES :: 2;
 
 vkCmdBeginRenderingKHR : PFN_vkCmdBeginRenderingKHR;
 vkCmdEndRenderingKHR : PFN_vkCmdEndRenderingKHR;
+
+#if VALIDATION {
+    vk_debug_callback_handle: VkDebugReportCallbackEXT;
+
+    vk_validation_callback :: (flags: VkDebugReportFlagsEXT, objType: VkDebugReportObjectTypeEXT, obj: u64, location: u64, code: s32, layerPrefix: *u8, msg: *u8, userData: *void) -> VkBool32 #c_call {
+        new_context: #Context;
+        push_context new_context {
+            log("Vulkan Validation: %", to_string(msg));
+        }
+        
+        return VK_FALSE;
+    }
+
+    vk_debug_callback :: (messageSeverity: VkDebugUtilsMessageSeverityFlagBitsEXT, messageTypes: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: *VkDebugUtilsMessengerCallbackDataEXT, pUserData: *void) -> VkBool32 #c_call {
+        new_context: #Context;
+        push_context new_context {
+            if messageSeverity == {
+                case .WARNING_BIT_EXT;
+                    log("Vulkan debug: %", to_string(pCallbackData.pMessage));
+                case .ERROR_BIT_EXT;
+                    log("Vulkan debug: %", to_string(pCallbackData.pMessage));
+            }
+        }
+
+        return VK_FALSE;
+    }
+}
 
 #import,file "modules/Vulkan_With_VMA/module.jai";
 

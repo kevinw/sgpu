@@ -1,8 +1,8 @@
 main :: () {
     gpu_init();
 
-    ptr := gpu_malloc(1024, 16);
-    _, gpu_ptr := gpu_malloc(1024, 16, .GPU);
+    ptr := gpu_malloc(1024);
+    _, gpu_ptr := gpu_malloc(1024, .GPU);
 
     memset(ptr, 255, 1024);
 
@@ -15,4 +15,4 @@ main :: () {
     gpu_shutdown();
 }
 
-#import,file "../../simp_gpu/module.jai";
+#import,file "../../simp_gpu/module.jai"(VALIDATION = true);
