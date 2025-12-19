@@ -26,7 +26,7 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
     vk_result := vmaCreateImage(vma, *image_create_info, *alloc_create_info, *image, *alloc, *alloc_info);
     assert_vk_result(vk_result);
 
-    handle := pool_add(*live_textures, .{desc, image, alloc});
+    handle := pool_add(*live_textures, .{desc = desc, vk_image = image, allocation = alloc});
 
     return handle;
 }
@@ -34,6 +34,10 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
 gpu_free :: (texture_handle: Gpu_Texture) {
     found, texture := pool_remove(*live_textures, texture_handle);
     assert(found);
+
+    for texture.views {
+        cleanup_texture_view(it);
+    }
 
     vmaDestroyImage(vma, texture.vk_image, texture.allocation);
 }
@@ -65,6 +69,9 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, desc: Gpu_View_Desc = .{}) -> 
     assert_vk_result(vk_result);
 
     handle := pool_add(*live_views, .{desc, vk_view});
+
+    array_add(*texture.views, handle);
+
     return handle;
 }
 
@@ -74,6 +81,10 @@ Texture :: struct {
     desc: Gpu_Texture_Desc;
     vk_image: VkImage;
     allocation: VmaAllocation;
+
+    // retain a mapping of texture to all known views of that texture
+    // so they can be destroyed when the texture is destroyed.
+    views: [..] Gpu_Texture_View;
 }
 
 Texture_View :: struct {
@@ -99,4 +110,11 @@ get_image_aspect_mask :: (format: Format) -> VkImageAspectFlags {
         case;
             return .COLOR_BIT;
     }
+}
+
+cleanup_texture_view :: (view_handle: Gpu_Texture_View) {
+    removed, view := pool_remove(*live_views, view_handle);
+    assert(removed);
+
+    vkDestroyImageView(vk_device, view.vk_view, null);
 }
