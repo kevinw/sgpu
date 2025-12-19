@@ -17,10 +17,10 @@ Gpu_Command_Buffer :: #type,distinct s64;
 Gpu_Semaphore :: #type,distinct s64;
 
 Cull :: enum {
-    NONE;
-    CCW;
-    CW;
-    ALL;
+    NONE    :: 0x0;
+    CCW     :: 0x1;
+    CW      :: 0x2;
+    ALL     :: 0x3;
 }
 
 Depth_Flags :: enum_flags u8 {
@@ -60,19 +60,39 @@ Blend :: enum {
 }
 
 Factor :: enum {
-    ZERO;
-    ONE;
-    SRC_COLOR;
-    DST_COLOR;
-    SRC_ALPHA;
-    DST_ALPHA;
-    // #todo
+    ZERO                     :: 0;
+    ONE                      :: 1;
+    SRC_COLOR                :: 2;
+    ONE_MINUS_SRC_COLOR      :: 3;
+    DST_COLOR                :: 4;
+    ONE_MINUS_DST_COLOR      :: 5;
+    SRC_ALPHA                :: 6;
+    ONE_MINUS_SRC_ALPHA      :: 7;
+    DST_ALPHA                :: 8;
+    ONE_MINUS_DST_ALPHA      :: 9;
+    CONSTANT_COLOR           :: 10;
+    ONE_MINUS_CONSTANT_COLOR :: 11;
+    CONSTANT_ALPHA           :: 12;
+    ONE_MINUS_CONSTANT_ALPHA :: 13;
+    SRC_ALPHA_SATURATE       :: 14;
+}
+
+Component_Flags :: enum_flags {
+    R   :: 0x01;
+    G   :: 0x02;
+    B   :: 0x04;
+    A   :: 0x08;
+    ALL :: R | G | B | A;
 }
 
 Topology :: enum {
-    TRIANGLE_LIST;
-    TRIANGLE_STRIP;
-    TRIANGLE_FAN;
+    // #todo: nyi
+    //POINT_LIST      :: 0;
+    //LINE_LIST       :: 1;
+    //LINE_STRIP      :: 2;
+    TRIANGLE_LIST   :: 3;
+    TRIANGLE_STRIP  :: 4;
+    TRIANGLE_FAN    :: 5;
 }
 
 Texture_Type :: enum {
@@ -278,6 +298,18 @@ Stencil_Desc :: struct {
     reference: u8 = 0;
 }
 
+Gpu_Blend_Desc :: struct {
+    color_op: Blend = .ADD;
+    src_color_factor: Factor = .ONE;
+    dst_color_factor: Factor = .ZERO;
+
+    alpha_op: Blend = .ADD;
+    src_alpha_factor: Factor = .ONE;
+    dst_alpha_factor: Factor = .ZERO;
+
+    color_write_mask: Component_Flags = .ALL;
+}
+
 Gpu_Depth_Stencil_Desc :: struct {
     depth_mode: Depth_Flags;
     depth_test: Op = .ALWAYS;
@@ -295,7 +327,6 @@ Gpu_Depth_Stencil_Desc :: struct {
 
 Color_Target :: struct {
     format: Format = .UNDEFINED;
-    write_mask: u8 = 0xf;
 }
 
 Gpu_Raster_Desc :: struct {
@@ -310,8 +341,10 @@ Gpu_Raster_Desc :: struct {
     
     color_targets: [] Color_Target;
 
-    // #TODO: better way to convey Optional here.
-    blend_state: *Gpu_Blend_State;
+    // Optional blend state baked into the pipeline.
+    // else dynamic state.
+    // blend state is duplicated to all color targets.
+    blend_state: *Gpu_Blend_Desc;
 }
 
 Gpu_Texture_Desc :: struct {
@@ -396,20 +429,6 @@ gpu_wait_idle :: () {
 }
 
 
-// ----------------------------- Pipelines ------------------------------------
-
-gpu_create_compute_pipeline :: (spirv: [] u8) -> Gpu_Pipeline {
-    return 0;
-}
-
-gpu_create_graphics_pipeline :: (vertex_spirv: [] u8, pixel_spirv: [] u8, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
-    return 0;
-}
-
-gpu_free_pipeline :: (pipeline: Gpu_Pipeline) {
-
-}
-
 // ----------------------------- Queues ------------------------------------
 
 gpu_get_queue :: (queue_type: Gpu_Queue_Type, queue_index: u32) -> Gpu_Queue {
@@ -461,6 +480,7 @@ gpu_destroy_semaphore :: (semaphore_handle: Gpu_Semaphore) {
 #load "command_buffer.jai";
 #load "textures.jai";
 #load "bindless.jai";
+#load "pipeline.jai";
 
 #scope_module
 

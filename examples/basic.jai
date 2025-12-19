@@ -42,6 +42,8 @@ main :: () {
         gpu_free(texture);
     }
 
+    graphics_pipeline := gpu_create_graphics_pipeline(.[], .[], .{});
+
     main_queue := gpu_get_queue(.MAIN, 0);
     c1_queue := gpu_get_queue(.COMPUTE, 0);
     c2_queue := gpu_get_queue(.COMPUTE, 1);
