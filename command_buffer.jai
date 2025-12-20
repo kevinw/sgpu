@@ -272,8 +272,9 @@ gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pi
     vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .VERTEX_BIT, 0, size_of(VkDeviceAddress), *vertex_data);
     vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .FRAGMENT_BIT, 1 * size_of(VkDeviceAddress), size_of(VkDeviceAddress), *pixel_data);
 
-    index_buffer := get_buffer(index_data);
-    vkCmdBindIndexBuffer(vk_cmd_buff, index_buffer, 0, .UINT32);
+    index_buffer, offset := get_buffer_and_offset(index_data);
+
+    vkCmdBindIndexBuffer(vk_cmd_buff, index_buffer, offset.(VkDeviceSize), .UINT32);
     vkCmdDrawIndexed(vk_cmd_buff, index_count, instance_count, 0, 0, 0);
 }
 

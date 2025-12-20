@@ -63,7 +63,7 @@ gpu_malloc :: (size: s64, memory_type: Memory_Type = .DEFAULT) -> (mapped: *void
 
     table_add(*gpu_allocations, result.gpu_ptr, result);
 
-    array_add(*gpu_memory_ranges, .{start = result.gpu_ptr, end = result.gpu_ptr + size.(Gpu_Ptr) + 1});
+    array_add(*gpu_memory_ranges, .{start = result.gpu_ptr, end = result.gpu_ptr + size.(Gpu_Ptr)});
 
     return mapped, result.gpu_ptr;
 }
@@ -142,6 +142,15 @@ get_buffer :: (gpu_ptr: Gpu_Ptr) -> VkBuffer {
     found, alloc := table_find(*gpu_allocations, gpu_ptr);
     assert(found);
     return alloc.vk_buffer;
+}
+
+get_buffer_and_offset :: (gpu_ptr: Gpu_Ptr) -> VkBuffer, s64 {
+    range := find_memory_range(gpu_ptr);
+    assert(range.start != 0);
+
+    vk_buffer := get_buffer(range.start);
+
+    return vk_buffer, (gpu_ptr - range.start).(s64);
 }
 
 #import "Hash_Table";
