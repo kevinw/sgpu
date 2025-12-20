@@ -166,7 +166,7 @@ create_global_pipeline_layout :: () {
     ALL_STAGES :: #run enum_values_as_enum(Shader_Stage);
     for ALL_STAGES {
         push_const_ranges[it_index] = .{
-            offset = it_index.(u32) * 4,
+            offset = it_index.(u32) * size_of(VkDeviceAddress),
             size = size_of(VkDeviceAddress),
             stageFlags = it.(VkShaderStageFlags),
         };

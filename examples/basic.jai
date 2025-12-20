@@ -1,5 +1,5 @@
 main :: () {
-    //init_renderdoc();
+    init_renderdoc();
     gpu_init();
 
     transfer_queue := gpu_get_queue(.TRANSFER, 0);
@@ -81,7 +81,12 @@ main :: () {
         index_buffer[1] = 1;
         index_buffer[2] = 2;
 
-        //rdoc_api.StartFrameCapture(null, null);
+        pixel_data, pixel_gpu := gpu_malloc(3 * size_of(float));
+        pixel_data.(*float)[0] = 1.;
+        pixel_data.(*float)[1] = 0.;
+        pixel_data.(*float)[2] = 1.;
+
+        rdoc_api.StartFrameCapture(null, null);
 
         cmd_buff := gpu_start_command_recording(main_queue);
         {
@@ -98,7 +103,7 @@ main :: () {
             gpu_begin_render_pass(cmd_buff, render_desc);
 
             gpu_set_pipeline(cmd_buff, graphics_pipeline);
-            gpu_draw_indexed_instanced(cmd_buff, vertex_gpu, index_gpu, 3, 1);
+            gpu_draw_indexed_instanced(cmd_buff, vertex_gpu, pixel_gpu, index_gpu, 3, 1);
 
             gpu_end_render_pass(cmd_buff);
         }
@@ -107,7 +112,7 @@ main :: () {
 
         gpu_wait_idle();
 
-        //assert(rdoc_api.EndFrameCapture(null, null) == 1);
+        assert(rdoc_api.EndFrameCapture(null, null) == 1);
 
         gpu_free(vertex_buffer);
         gpu_free(index_buffer);

@@ -1,14 +1,18 @@
 struct PS_Input {
 }
 
-struct Push_Consts {
-    // nothing for now
+struct Data {
+    float3 color;
 };
 
+struct Params {
+    [[vk::offset(8)]]
+    Data* data;
+}
 [vk::push_constant]
-Push_Consts pc;
+Params pc;
 
 [shader("pixel")]
 float4 main(PS_Input input) : SV_Target0 {
-    return float4(1, 0, 0, 1.);
+    return float4(pc.data.color, 1.);
 }

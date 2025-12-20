@@ -257,9 +257,10 @@ gpu_end_render_pass :: (cmd: Gpu_Command_Buffer) {
     vkCmdEndRendering(vk_cmd_buff);
 }
 
-gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, index_data: Gpu_Ptr, index_count: u32, instance_count: u32) {
+gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, index_count: u32, instance_count: u32) {
     vk_cmd_buff := get_cmd_buff(cmd);
 
+    // hard code this for now until dynamic viewport/scissor is set up.
     render_area: VkRect2D = .{offset = .{0, 0}, extent = .{1024, 1024}};
     // for ease of use, always set the viewport to the full viewport.
     // #todo: Custom control over viewports will be required
@@ -268,8 +269,8 @@ gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, in
     // #todo: custom control over scissor will be required.
     vkCmdSetScissor(vk_cmd_buff, 0, 1, *render_area);
 
-    // for now, vertex buffer is bound via push_consts.
     vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .VERTEX_BIT, 0, size_of(VkDeviceAddress), *vertex_data);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .FRAGMENT_BIT, 1 * size_of(VkDeviceAddress), size_of(VkDeviceAddress), *pixel_data);
 
     index_buffer := get_buffer(index_data);
     vkCmdBindIndexBuffer(vk_cmd_buff, index_buffer, 0, .UINT32);
