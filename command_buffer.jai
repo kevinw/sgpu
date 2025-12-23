@@ -118,7 +118,8 @@ gpu_submit_for_present :: (queue_handle: Gpu_Queue, buffer: Gpu_Command_Buffer) 
 
     image_barrier := VkImageMemoryBarrier2.{
         image = swapchain_images[current_swapchain_index],
-        srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        // Conservatively barrier on color attachment writes and transfer writes.
+        srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_2_TRANSFER_BIT,
         dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
         srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
         subresourceRange = .{
@@ -213,7 +214,7 @@ gpu_copy_from_texture :: (cmd: Gpu_Command_Buffer, dest: Gpu_Ptr, src: Gpu_Ptr, 
 
 }
 
-gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage, hazard: Hazard_Flags = .NONE) {
+gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage) {
     cmd_buff := get_cmd_buff(cmd);
 
     // the barrier model in this api is based on the assumption that most gpu caches are coherent in the modern day.
@@ -223,24 +224,9 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage, hazard: Ha
     memory_barrier := VkMemoryBarrier2.{
         srcStageMask = before.(VkPipelineStageFlags2),
         dstStageMask = after.(VkPipelineStageFlags2),
+        srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+        dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
     };
-
-    if hazard != 0 {
-        // #todo: this could be more fine-grained but this covers all the cases where the gpu
-        // could write to these buffers and should have little performance impact.
-        // needs testing.
-        memory_barrier.srcAccessMask |= VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        memory_barrier.srcAccessMask |= VK_ACCESS_2_SHADER_WRITE_BIT;
-    }
-    if hazard & .DESCRIPTORS != 0 {
-        memory_barrier.dstAccessMask |= VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT;
-    }
-    if hazard & .DRAW_ARGS != 0 {
-        memory_barrier.dstAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-    }
-    if hazard & .DEPTH_STENCIL != 0 {
-        memory_barrier.dstAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT_KHR;
-    }
 
     dep_info := VkDependencyInfo.{
         memoryBarrierCount = 1,

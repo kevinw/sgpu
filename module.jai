@@ -293,16 +293,6 @@ Stage :: enum {
     ALL                     :: 0x00010000;
 }
 
-Hazard_Flags :: enum_flags {
-    NONE          :: 0x0;
-    // Flushes (GPU) writes to indirect draw args.
-    DRAW_ARGS     :: 0x1;
-    // Flushes (GPU) writes to descriptor buffer.
-    DESCRIPTORS   :: 0x2;
-    // Flushes (GPU) writes to depth and stencil buffers.
-    DEPTH_STENCIL :: 0x4;
-}
-
 Signal :: enum {
     ATOMIC_SET;
     ATOMIC_MAX;
