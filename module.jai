@@ -6,6 +6,8 @@ Gpu_Texture :: #type,distinct s64;
 
 Gpu_Texture_View :: #type,distinct s64;
 
+Gpu_Sampler :: #type,distinct s64;
+
 Gpu_Depth_Stencil_State :: #type,distinct s64;
 
 Gpu_Blend_State :: #type,distinct s64;
@@ -374,6 +376,53 @@ Gpu_View_Desc :: struct {
     mip_count: u8 = 0xFF; 
     base_layer: u16 = 0;
     layer_count: u16 = 0xFFFF;
+}
+
+Gpu_Sampler_Desc :: struct {
+    Filter :: enum {
+        NEAREST;
+        LINEAR;
+    }
+
+    Address_Mode :: enum {
+        REPEAT                   :: 0;
+        MIRRORED_REPEAT          :: 1;
+        CLAMP_TO_EDGE            :: 2;
+        CLAMP_TO_BORDER          :: 3;
+        MIRROR_CLAMP_TO_EDGE     :: 4;
+    }
+
+    Border_Color :: enum {
+        FLOAT_TRANSPARENT_BLACK :: 0;
+        INT_TRANSPARENT_BLACK   :: 1;
+        FLOAT_OPAQUE_BLACK      :: 2;
+        INT_OPAQUE_BLACK        :: 3;
+        FLOAT_OPAQUE_WHITE      :: 4;
+        INT_OPAQUE_WHITE        :: 5;
+    }
+
+    min_filter: Filter = .LINEAR;
+    mag_filter: Filter = .LINEAR;
+    mip_filter: Filter = .LINEAR;
+
+    address_mode_u: Address_Mode = .CLAMP_TO_EDGE;
+    address_mode_v: Address_Mode = .CLAMP_TO_EDGE;
+    address_mode_w: Address_Mode = .CLAMP_TO_EDGE;
+
+    mip_lod_bias: float = 0.5;
+    mip_lod: float = 0.;
+
+    enable_anisotropy: bool = false;
+    max_anisotropy: float = 0.;
+
+    compare_op: Op = .ALWAYS;
+
+    min_lod: float = 0.;
+    max_lod: float = 1000.;
+
+    border_color: Border_Color;
+
+    unnormalized_coordinates: bool;
 }
 
 Gpu_Render_Pass_Attachment_Desc :: struct {
@@ -918,8 +967,9 @@ get_semaphore :: (semaphore_handle: Gpu_Semaphore) -> VkSemaphore {
 
 live_semaphores: Pool(Gpu_Semaphore, Semaphore);
 
-MAX_BUFFERS :: 10000;
-MAX_IMAGES  :: 10000;
+MAX_BUFFERS  :: 10000;
+MAX_IMAGES   :: 10000;
+MAX_SAMPLERS :: 1000;
 
 MAX_COMPUTE_QUEUES  :: 4;
 MAX_TRANSFER_QUEUES :: 2;

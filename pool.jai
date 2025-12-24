@@ -1,6 +1,6 @@
 #scope_module
 
-Pool :: struct(Handle_Type: Type, Value_Type: Type) {
+Pool :: struct(Handle_Type: Type, Value_Type: Type, max: s64 = S64_MAX) {
     values: [..] Value_Type;
     free_list: [..] s64;
 }
@@ -11,6 +11,7 @@ pool_add :: (using pool: *Pool, item: pool.Value_Type) -> pool.Handle_Type {
         values[index] = item;
         return (index + 1).(pool.Handle_Type);
     } else {
+        assert(values.count < pool.max, "pool ran out of valid handle ids");
         array_add(*values, item);
         return values.count.(pool.Handle_Type);
     }

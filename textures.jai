@@ -154,6 +154,36 @@ gpu_texture_desc :: (view_hande: Gpu_Texture_View) -> bool, Gpu_Texture_Desc {
     return true, texture.desc;
 }
 
+gpu_create_sampler :: (desc: Gpu_Sampler_Desc) -> Gpu_Sampler {
+    create_info := VkSamplerCreateInfo.{
+        minFilter = desc.min_filter,
+        magFilter = desc.mag_filter,
+        mipmapMode = desc.mip_filter,
+        addressModeU = desc.address_mode_u.(VkSamplerAddressMode),
+        addressModeV = desc.address_mode_v.(VkSamplerAddressMode),
+        addressModeW = desc.address_mode_w.(VkSamplerAddressMode),
+        mipLodBias = desc.mip_lod_bias,
+        anisotropyEnable = desc.enable_anisotropy,
+        compareEnable = (desc.compare_op != NEVER).(VkBool32),
+        compareOp = desc.compare_op.(VkCompareOp),
+        minLod = desc.min_lod,
+        maxLod = desc.max_lod,
+        borderColor = desc.border_color.(VkBorderColor),
+        unnormalizedCoordinates = desc.unnormalized_coordinates
+    };
+
+    vk_sampler: VkSampler;
+    vk_result := vkCreateSampler(vk_device, *create_info, null, *vk_sampler);
+    assert_vk_result(vk_result);
+
+    handle := pool_add(*live_samplers, vk_sampler);
+    assert(handle);
+
+    write_sampler_descriptor(vk_sampler, handle);
+
+    return handle;
+}
+
 #scope_module
 
 Texture :: struct {
@@ -172,8 +202,9 @@ Texture_View :: struct {
     vk_view: VkImageView;
 }
 
-live_textures: Pool(Gpu_Texture, Texture);
-live_views: Pool(Gpu_Texture_View, Texture_View);
+live_textures: Pool(Gpu_Texture, Texture, max = MAX_IMAGES);
+live_views: Pool(Gpu_Texture_View, Texture_View, max = MAX_IMAGES);
+live_samplers: Pool(Gpu_Sampler, VkSampler,max = MAX_SAMPLERS);
 
 get_image_aspect_mask :: (format: Format) -> VkImageAspectFlags {
     if format == {

@@ -1,5 +1,6 @@
 TEXTURE_BINDING :: 0;
 RW_TEXTURE_BINDING :: 1;
+SAMPLER_BINDING :: 2;
 
 
 #scope_module
@@ -11,6 +12,7 @@ create_descriptor_buffer :: () {
 
     num_sampled_images := min(properties.properties.limits.maxDescriptorSetSampledImages, MAX_IMAGES);
     num_storage_images := min(properties.properties.limits.maxDescriptorSetStorageImages, MAX_IMAGES);
+    num_samplers := min(properties.properties.limits.maxDescriptorSetSamplers, MAX_SAMPLERS);
 
     bindings := VkDescriptorSetLayoutBinding.[
         .{
@@ -23,6 +25,12 @@ create_descriptor_buffer :: () {
             binding = RW_TEXTURE_BINDING,
             descriptorType = .STORAGE_IMAGE,
             descriptorCount = num_storage_images,
+            stageFlags = .ALL,
+        },
+        .{
+            binding = SAMPLER_BINDING,
+            descriptorType = .SAMPLER,
+            descriptorCount = num_samplers,
             stageFlags = .ALL,
         }
     ];
@@ -94,6 +102,27 @@ write_texture_descriptor :: (vk_view: VkImageView, index: Gpu_Texture_View) {
     };
 
     vkGetDescriptorEXT(vk_device, *get_info, image_descriptor_size, element_ptr);
+}
+
+write_sampler_descriptor :: (vk_sampler: VkSampler, index: Gpu_Sampler) {
+    binding_offset: VkDeviceSize;
+    vkGetDescriptorSetLayoutBindingOffsetEXT(vk_device, bindless_set_layout, TEXTURE_BINDING, *binding_offset);
+
+    binding := bindless_buffer.mapped + binding_offset;
+
+    sampler_descriptor_size := descriptor_properties.samplerDescriptorSize;
+    element_ptr := binding + (index.(u64) * sampler_descriptor_size);
+
+    image_info := VkDescriptorImageInfo.{
+        sampler = vk_sampler,
+    };
+
+    get_info := VkDescriptorGetInfoEXT.{
+        type = .SAMPLER,
+        data.pSampledImage = *image_info,
+    };
+
+    vkGetDescriptorEXT(vk_device, *get_info, sampler_descriptor_size, element_ptr);
 }
 
 destroy_bindless_buffer :: () {
