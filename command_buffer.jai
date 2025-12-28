@@ -304,7 +304,18 @@ gpu_end_render_pass :: (cmd: Gpu_Command_Buffer) {
     vkCmdEndRendering(vk_cmd_buff);
 }
 
-gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, index_count: u32, instance_count: u32) -> Gpu_Result {
+gpu_draw_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, vertex_count: u32, instance_count: u32) {
+    vk_cmd_buff := get_cmd_buff(cmd);
+
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .VERTEX_BIT, 0, size_of(VkDeviceAddress), *vertex_data);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .FRAGMENT_BIT, 1 * size_of(VkDeviceAddress), size_of(VkDeviceAddress), *pixel_data);
+
+    vkCmdDraw(vk_cmd_buff, vertex_count, instance_count, 0, 0);
+
+    return .SUCCESS;
+}
+
+gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, index_count: u32, instance_count: u32, index_size: u32 = size_of(u32)) -> Gpu_Result {
     vk_cmd_buff := get_cmd_buff(cmd);
 
     vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .VERTEX_BIT, 0, size_of(VkDeviceAddress), *vertex_data);
@@ -313,7 +324,8 @@ gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pi
     result, index_buffer, offset := get_buffer_and_offset(index_data);
     return_if_error(result);
 
-    vkCmdBindIndexBuffer(vk_cmd_buff, index_buffer, offset.(VkDeviceSize), .UINT32);
+    if index_size != 4 || index_size != 2 then return .ERROR_INVALID_VERTEX_INDEX_SIZE;
+    vkCmdBindIndexBuffer(vk_cmd_buff, index_buffer, offset.(VkDeviceSize), ifx index_size == 4 then .UINT32 else .UINT16);
     vkCmdDrawIndexed(vk_cmd_buff, index_count, instance_count, 0, 0, 0);
 
     return .SUCCESS;
