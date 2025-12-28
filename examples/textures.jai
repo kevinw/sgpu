@@ -141,7 +141,7 @@ load_texture :: (filename: string, format: Format, upload_complete_timeline: Gpu
     transfer_queue := gpu_get_queue(.TRANSFER, 0);
     _, cmd_buff := gpu_start_command_recording(transfer_queue);
 
-    gpu_enqueue_destroy(transfer_queue, cmd_buff, staging_gpu);
+    gpu_enqueue_destroy(cmd_buff, staging_gpu);
 
     gpu_copy_to_texture(cmd_buff, texture, staging_gpu);
 

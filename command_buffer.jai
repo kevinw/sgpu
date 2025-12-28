@@ -222,7 +222,7 @@ gpu_indirect_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions_gpu
     return .SUCCESS;
 }
 
-gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) {
+gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) -> Gpu_Result {
     vk_cmd_buff := get_cmd_buff(cmd);
 
     color_attachments: [MAX_ATTACHMENTS] VkRenderingAttachmentInfo;
@@ -231,6 +231,9 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) {
     layer_count: u32 = 1;
     for desc.color_targets {
         view := get_texture_view(it.view);
+        if view == null {
+            return .ERROR_INVALID_TEXTURE;
+        }
         texture := get_texture(view.texture);
         render_area.extent.width = texture.desc.dimensions[0];
         render_area.extent.height = texture.desc.dimensions[1];
@@ -297,6 +300,8 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) {
     viewport := VkViewport.{x = 0, y = 0, width = xx render_area.extent.width, height = xx render_area.extent.height, minDepth = 0, maxDepth = 1};
     vkCmdSetViewport(vk_cmd_buff, 0, 1, *viewport);
     vkCmdSetScissor(vk_cmd_buff, 0, 1, *render_area);
+
+    return .SUCCESS;
 }
 
 gpu_end_render_pass :: (cmd: Gpu_Command_Buffer) {
@@ -337,14 +342,16 @@ gpu_draw_indexed_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pix
 
 
 /** Queue resource for deletion when this command buffer finishes execution */
-gpu_enqueue_destroy :: (queue_handle: Gpu_Queue, cmd: Gpu_Command_Buffer, gpu_ptr: Gpu_Ptr) {
-    queue := get_queue(queue_handle);
+gpu_enqueue_destroy :: (cmd: Gpu_Command_Buffer, gpu_ptr: Gpu_Ptr) {
+    pool := get_pool(cmd);
+    queue := get_queue(pool.queue);
     garbage_list := *garbage_allocations[queue.global_index];
     array_add(garbage_list, .{queue.timeline_value, gpu_ptr});
 }
 
-gpu_enqueue_destroy :: (queue_handle: Gpu_Queue, cmd: Gpu_Command_Buffer, texture: Gpu_Texture) {
-    queue := get_queue(queue_handle);
+gpu_enqueue_destroy :: (cmd: Gpu_Command_Buffer, texture: Gpu_Texture) {
+    pool := get_pool(cmd);
+    queue := get_queue(pool.queue);
     garbage_list := *garbage_textures[queue.global_index];
     array_add(garbage_list, .{queue.timeline_value, texture});
 }
@@ -457,10 +464,11 @@ Submit_Info :: struct {
 }
 
 submit_command_buffer :: (using submit_info: Submit_Info) {
-    assert(cmd_buff != 0);
     index := get_cmd_buff_index(cmd_buff);
     assert(index < live_pools.count);
     pool := live_pools[index];
+    // #todo: propagate this error up.
+    debug_assert(pool != null);
 
     vkEndCommandBuffer(pool.vk_cmd_buff);
 
@@ -519,4 +527,12 @@ submit_command_buffer :: (using submit_info: Submit_Info) {
     live_pools[index] = null;
     array_add(*garbage_pools[queue.global_index], .{queue_timeline_value, pool});
     table_remove(*cmd_buffer_indices, cmd_buff);
+}
+
+get_pool :: (cmd_buff: Gpu_Command_Buffer) -> *Command_Pool {
+    index := get_cmd_buff_index(cmd_buff);
+    assert(index < live_pools.count);
+    pool := live_pools[index];
+
+    return pool;
 }
