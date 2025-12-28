@@ -150,15 +150,18 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage) {
     vkCmdPipelineBarrier2(cmd_buff, *dep_info);
 }
 
-gpu_set_pipeline :: (cmd: Gpu_Command_Buffer, pipeline_handle: Gpu_Pipeline) {
+gpu_set_pipeline :: (cmd: Gpu_Command_Buffer, pipeline_handle: Gpu_Pipeline) -> Gpu_Result {
     vk_cmd_buff := get_cmd_buff(cmd);
     pipeline := pool_get(live_pipelines, pipeline_handle);
+    if !pipeline then return .ERROR_INVALID_PIPELINE;
 
     bind_point: VkPipelineBindPoint = ifx pipeline.type == .GRAPHICS then .GRAPHICS else .COMPUTE;
 
     vkCmdBindPipeline(vk_cmd_buff, bind_point, pipeline.vk_pipeline);
     // #todo: Do we need to rebind this every time? All the pipelines share the same pipeline layout so the binding is compatible.
     bind_descriptor_buffer(vk_cmd_buff, bind_point);
+
+    return .SUCCESS;
 }
 
 gpu_set_depth_stencil_state :: (cmd: Gpu_Command_Buffer, desc: Gpu_Depth_Stencil_Desc) {
@@ -316,8 +319,6 @@ gpu_draw_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data
     vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .FRAGMENT_BIT, 1 * size_of(VkDeviceAddress), size_of(VkDeviceAddress), *pixel_data);
 
     vkCmdDraw(vk_cmd_buff, vertex_count, instance_count, 0, 0);
-
-    return .SUCCESS;
 }
 
 gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, index_count: u32, instance_count: u32, index_size: u32 = size_of(u32)) -> Gpu_Result {
