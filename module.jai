@@ -325,6 +325,19 @@ Gpu_Result :: enum s32 {
     FATAL_ERROR_UNKNOWN;
 }
 
+Gpu_Optional_Features :: enum_flags {
+    NONE                    :: 0;
+    SHADER_ATOMIC_INT64     :: 1 << 1;
+    SHADER_INT16            :: 1 << 2;
+    SHADER_INT64            :: 1 << 3;
+    SHADER_INT8             :: 1 << 4;
+    STORAGE_PUSH_CONSTANT_8 :: 1 << 5;
+
+    // -- nyi --
+    MESH_SHADERS            ;
+    RAY_TRACING             ;
+}
+
 Stencil_Desc :: struct {
     test: Op = .ALWAYS;
     fail_op: Stencil_Op = .KEEP;
@@ -504,8 +517,9 @@ Gpu_Render_Pass_Desc :: struct {
 
 // ----------------------------- Global ------------------------------------
 
-gpu_init :: () -> Gpu_Result {
+gpu_init :: (optional_features: Gpu_Optional_Features = .NONE) -> Gpu_Result {
     remember_allocator();
+    requested_optional_features = optional_features;
 
     #if ENABLE_RENDER_CAPTURE {
         gpu_capture_init();
@@ -638,6 +652,10 @@ debug_assert :: (arg: bool, message := "", args: ..Any, loc := #caller_location)
     #if DEBUG_ASSERTS {
         assert(arg, message, args, loc);
     }
+}
+
+enable_feature :: inline (flags: Gpu_Optional_Features, bit: Gpu_Optional_Features) -> VkBool32 {
+    return ifx (flags & bit) == bit then VK_TRUE else VK_FALSE;
 }
 
 create_instance :: () -> Gpu_Result {
@@ -902,6 +920,9 @@ create_device :: () -> Gpu_Result {
             timelineSemaphore = VK_TRUE,
             vulkanMemoryModel = VK_TRUE,
             vulkanMemoryModelDeviceScope = VK_TRUE,
+            storagePushConstant8 = enable_feature(requested_optional_features, .SHADER_INT8),
+            shaderInt8 = enable_feature(requested_optional_features, .SHADER_INT8),
+            shaderFloat16 = VK_TRUE,
         };
         chain = *vk12_features;
 
@@ -914,6 +935,8 @@ create_device :: () -> Gpu_Result {
         chain = *vk11_features;
 
         device_features := VkPhysicalDeviceFeatures.{
+            shaderInt64 = enable_feature(requested_optional_features, .SHADER_INT64),
+            shaderInt16 = VK_TRUE,
         };
 
         create_info := VkDeviceCreateInfo.{
@@ -1007,6 +1030,7 @@ generate_get_device_proc_addr :: (proc_name: string) ->string #compile_time {
 
 // we remember the allocator passed into gpu_init and ensure all cpu allocations occur using that allocator.
 cpu_allocator: Allocator;
+requested_optional_features: Gpu_Optional_Features;
 
 vk_instance: VkInstance;
 vk_physical_device: VkPhysicalDevice;
