@@ -320,6 +320,7 @@ Gpu_Result :: enum s32 {
     ERROR_UNKNOWN_GPU_POINTER;
     ERROR_INVALID_BUFFER;
     ERROR_INVALID_TEXTURE;
+    ERROR_INVALID_TEXTURE_VIEW;
     ERROR_INVALID_PIPELINE;
 
     FATAL_ERROR_UNKNOWN;
@@ -492,16 +493,18 @@ Gpu_Sampler_Desc :: struct {
     unnormalized_coordinates: bool;
 }
 
+Gpu_Color_Value :: union {
+    _float: [4] float;
+    _uint: [4] u32;
+    _int: [4] s32;
+}
+
 Gpu_Render_Pass_Attachment_Desc :: struct {
     view: Gpu_Texture_View;
     load_op: Load_Op;
     store_op: Store_Op;
     union {
-        clear_color: union {
-            _float: [4] float;
-            _uint: [4] u32;
-            _int: [4] s32;
-        };
+        clear_color: Gpu_Color_Value;
         clear_value: struct {
             depth: float;
             stencil: u32;

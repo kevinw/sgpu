@@ -128,6 +128,33 @@ gpu_copy_to_texture :: (cmd: Gpu_Command_Buffer, dest: Gpu_Texture, src: Gpu_Ptr
     return .SUCCESS;
 }
 
+gpu_clear_texture :: (cmd: Gpu_Command_Buffer, view_handle: Gpu_Texture_View, clear_color: Gpu_Color_Value) -> Gpu_Result {
+    view := get_texture_view(view_handle);
+    if !view then return .ERROR_INVALID_TEXTURE_VIEW;
+
+    return gpu_clear_texture(cmd, view.texture, clear_color);
+}
+
+gpu_clear_texture :: (cmd: Gpu_Command_Buffer, texture_handle: Gpu_Texture, clear_color: Gpu_Color_Value) -> Gpu_Result {
+    texture := get_texture(texture_handle);
+    if !texture then return .ERROR_INVALID_TEXTURE;
+
+    vk_cmd_buff := get_cmd_buff(cmd);
+
+    // #todo: support clearing specific mip/array ranges.
+    range := VkImageSubresourceRange.{
+        aspectMask = get_image_aspect_mask(texture.desc.format),
+        baseMipLevel = 0,
+        levelCount = texture.desc.mip_count,
+        baseArrayLayer = 0,
+        layerCount = texture.desc.layer_count,
+    };
+
+    vkCmdClearColorImage(vk_cmd_buff, texture.vk_image, .GENERAL, (*clear_color).(*VkClearColorValue), 1, *range);
+
+    return .SUCCESS;
+}
+
 gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage) {
     cmd_buff := get_cmd_buff(cmd);
 
