@@ -900,6 +900,51 @@ create_device :: () -> Gpu_Result {
             return .FATAL_NO_GRAPHICS_QUEUE;
         }
 
+        // If we failed to find purely compute/transfer queues, try again to find dedicated queues that are not the primary queue:
+        if queue_families[Gpu_Queue_Type.COMPUTE].vk_family == U32_MAX || queue_families[Gpu_Queue_Type.TRANSFER].vk_family == U32_MAX {
+            primary_queue_family := queue_families[Gpu_Queue_Type.MAIN].vk_family;
+
+            for queue_family_properties {
+                already_used := false;
+                for other_family, _ : queue_families {
+                    if it_index == other_family.vk_family then already_used = true;
+                }
+
+                if already_used then continue;
+
+                supports_compute  := it.queueFlags & .COMPUTE_BIT;
+                supports_transfer := it.queueFlags & .TRANSFER_BIT;
+
+                if queue_families[Gpu_Queue_Type.COMPUTE].vk_family == U32_MAX && supports_compute && supports_transfer {
+                    count := min(it.queueCount, MAX_COMPUTE_QUEUES);
+
+                    queue_families[Gpu_Queue_Type.COMPUTE] = .{
+                        vk_family = it_index.(u32),
+                        count = count,
+                    };
+                    infos[queue_families_to_create] = .{
+                        family = it_index.(u32),
+                        count = count,
+                    };
+                    queue_families_to_create += 1;
+                }
+
+                if queue_families[Gpu_Queue_Type.TRANSFER].vk_family == U32_MAX && supports_transfer {
+                    count := min(it.queueCount, MAX_TRANSFER_QUEUES);
+                    queue_families[Gpu_Queue_Type.TRANSFER] = .{
+                        vk_family = it_index.(u32),
+                        count = count,
+                    };
+                    infos[queue_families_to_create] = .{
+                        family = it_index.(u32),
+                        count = count,
+                    };
+                    queue_families_to_create += 1;
+                }
+            }
+        }
+
+
         for 0..queue_families_to_create-1 {
             queue_create_infos[it] = .{
                 queueFamilyIndex = infos[it].family,
