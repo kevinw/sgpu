@@ -1,15 +1,24 @@
 main :: () {
-    gpu_init();
+    result := gpu_init();
+    assert(result == .SUCCESS);
+    defer gpu_shutdown();
 
     window := create_window(1280, 720, "Sample window");
-    gpu_init_swapchain(window.(u64), .X11);
+    window_type: Native_Window_Type;
+
+    #if      OS == .WINDOWS then  window_type = .WIN32;
+    else #if OS == .LINUX   then window_type = .X11;
+    else assert(false, "Unsupported OS");
+
+    gpu_init_swapchain(window.(u64), window_type);
+    defer gpu_destroy_swapchain();
 
     main_queue := gpu_get_queue(.MAIN, 0);
 
-    v_success, vertex_spv := compile_shader("../shaders/basic_vs.slang");
-    assert(v_success);
-    p_success, pixel_spv := compile_shader("../shaders/basic_ps.slang");
-    assert(p_success);
+    success, vertex_spv := compile_shader("../shaders/hello_square_vs.slang");
+    assert(success);
+    success=, pixel_spv := compile_shader("../shaders/hello_square_ps.slang");
+    assert(success);
 
     blend_state: Gpu_Blend_Desc;
     raster_desc := Gpu_Raster_Desc.{
@@ -25,6 +34,7 @@ main :: () {
     };
 
     graphics_pipeline := gpu_create_graphics_pipeline(vertex_spv, pixel_spv, raster_desc);
+    defer gpu_free_pipeline(graphics_pipeline);
 
     Vertex2D :: struct {
         x: float;
@@ -32,13 +42,14 @@ main :: () {
     }
 
     gpu_arena := gpu_make_arena(1024);
+    defer gpu_free_arena(gpu_arena);
 
     vertex_buffer, vertex_gpu := gpu_arena_alloc(*gpu_arena, [4] Vertex2D);
     vertex_buffer.* = .[
-        .{0.5, 0.5},
-        .{0.5, -0.5},
-        .{-0.5, -0.5},
-        .{-0.5, +0.5},
+        .{ 0.5,   0.5 },
+        .{ 0.5,  -0.5 },
+        .{ -0.5, -0.5 },
+        .{ -0.5, +0.5 },
     ];
 
     vertex_colors, colors_gpu := gpu_arena_alloc(*gpu_arena, [12] float);
@@ -71,12 +82,14 @@ main :: () {
             gpu_swapchain_resize();
         }
 
-        _, swapchain_image := gpu_swapchain_acquire();
+        result=, swapchain_image := gpu_swapchain_acquire();
+        assert(result == .SUCCESS);
         if !swapchain_image {
             continue;
         }
 
-        _, cmd_buff := gpu_start_command_recording(main_queue);
+        result=, cmd_buff := gpu_start_command_recording(main_queue);
+        assert(result == .SUCCESS);
         {
             render_desc := Gpu_Render_Pass_Desc.{
                 color_targets = .[
@@ -102,13 +115,6 @@ main :: () {
     }
 
     gpu_wait_idle();
-
-    gpu_free_arena(gpu_arena);
-    gpu_free_pipeline(graphics_pipeline);
-
-    gpu_destroy_swapchain();
-
-    gpu_shutdown();
 }
 
 #import,file "../module.jai"(VALIDATION = true);

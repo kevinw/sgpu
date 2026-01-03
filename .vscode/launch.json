@@ -55,32 +55,10 @@
       "cwd": "${workspaceFolder}/examples/bin"
     },
     {
-      "name": "Instanced Draw - Unix",
+      "name": "03_Hello Square - Unix",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/examples/bin/instanced_drawing",
-      "args": [],
-      "env": {
-        "LD_LIBRARY_PATH": "${workspaceFolder}/examples/bin"
-      },
-      "cwd": "${workspaceFolder}/examples/bin"
-    },
-    {
-      "name": "Draw Loop - Unix",
-      "type": "lldb",
-      "request": "launch",
-      "program": "${workspaceFolder}/examples/bin/draw_loop",
-      "args": [],
-      "env": {
-        "LD_LIBRARY_PATH": "${workspaceFolder}/examples/bin"
-      },
-      "cwd": "${workspaceFolder}/examples/bin"
-    },
-    {
-      "name": "Window - Unix",
-      "type": "lldb",
-      "request": "launch",
-      "program": "${workspaceFolder}/examples/bin/window",
+      "program": "${workspaceFolder}/examples/bin/03_hello_square",
       "args": [],
       "env": {
         "LD_LIBRARY_PATH": "${workspaceFolder}/examples/bin"
