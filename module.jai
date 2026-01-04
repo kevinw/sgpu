@@ -820,12 +820,6 @@ create_device :: () -> Gpu_Result {
             vkGetPhysicalDeviceProperties2(it, *device_properties);
             vkGetPhysicalDeviceFeatures2(it, *device_features);
 
-            limits_satisfied := device_properties.properties.limits.maxDescriptorSetStorageBuffers >= MAX_BUFFERS
-                && device_properties.properties.limits.maxDescriptorSetStorageImages >= MAX_IMAGES
-                && device_properties.properties.limits.maxDescriptorSetSampledImages >= MAX_IMAGES;
-
-            if !limits_satisfied then continue;
-
             supports_required_extensions: bool = true;
             {
                 available_extensions: [..] VkExtensionProperties;
