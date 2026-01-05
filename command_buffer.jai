@@ -247,7 +247,7 @@ gpu_indirect_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions_gpu
     return_if_error(result);
 
     vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .COMPUTE_BIT, 2 * size_of(VkDeviceAddress), size_of(VkDeviceAddress), *data);
-    vkCmdDispatchIndirect(vk_cmd_buff, indirect_buffer, offset);
+    vkCmdDispatchIndirect(vk_cmd_buff, indirect_buffer, offset.(u64));
 
     return .SUCCESS;
 }

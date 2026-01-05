@@ -1277,6 +1277,7 @@ vkCmdEndRenderingKHR : PFN_vkCmdEndRenderingKHR;
             msg_string := to_string(msg);
             // ignore messages about missing usage flag INDEX_BUFFER_BIT.
             if contains(msg_string, "requires VK_BUFFER_USAGE_2_INDEX_BUFFER_BIT") then return VK_FALSE;
+            if contains(msg_string, "requires VK_BUFFER_USAGE_2_INDIRECT_BUFFER_BIT") then return VK_FALSE;
 
             log("Vulkan Validation: %", to_string(msg));
         }
