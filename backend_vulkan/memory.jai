@@ -1,11 +1,3 @@
-Gpu_Ptr :: #type,distinct u64;
-
-Memory_Type :: enum {
-    DEFAULT;
-    GPU;
-    READBACK;
-}
-
 gpu_malloc :: ($type: Type, memory_type: Memory_Type = .DEFAULT) -> (mapped: *type, gpu: Gpu_Ptr) {
     cpu_ptr, gpu_ptr := gpu_malloc(size_of(type), memory_type);
     return cpu_ptr.(*type), gpu_ptr;

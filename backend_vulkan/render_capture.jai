@@ -2,8 +2,9 @@
 
 #if RENDER_CAPTURE {
 
-    gpu_capture_start :: () {
+    gpu_capture_start :: () -> Gpu_Result {
         rdoc_api.StartFrameCapture(null, null);
+        return .SUCCESS;
     }
 
     gpu_capture_end :: () {
@@ -49,7 +50,8 @@
 
     #import,file "modules/renderdoc/module.jai";
 } else {
-    gpu_capture_start :: () {
+    gpu_capture_start :: () -> Gpu_Result {
+        return .SUCCESS;
     }
 
     gpu_capture_end :: () {

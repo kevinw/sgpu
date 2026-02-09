@@ -1,5 +1,3 @@
-WRITE_SHADER_OUTPUT :: true;
-
 main :: () {
     opts := gpu_example_harness();
 
@@ -7,7 +5,10 @@ main :: () {
     assert(result == .SUCCESS);
     defer gpu_shutdown();
 
-    #import "Objective_C"; pool := objc_new(NSAutoreleasePool); defer release(pool);
+    #if OS == .MACOS {
+        #import "Objective_C";
+        pool := objc_new(NSAutoreleasePool); defer release(pool);
+    }
 
     window := create_window(1280, 720, "03_hello_square");
 
@@ -22,17 +23,10 @@ main :: () {
 
     main_queue := gpu_get_queue(.MAIN, 0);
 
-    #if 1 {
-        success, vertex_spv := compile_shader("../shaders/hello_square_vs.slang", write_output = WRITE_SHADER_OUTPUT); assert(success); assert(success);
-        defer array_free(vertex_spv);
-        success=, pixel_spv := compile_shader("../shaders/hello_square_ps.slang", write_output = WRITE_SHADER_OUTPUT); assert(success); assert(success);
-        defer array_free(pixel_spv);
-    } else {
-        vertex_spv, ok := File.read_entire_file("shaders/hello_square_vs.metal"); assert(ok);
-        defer array_free(vertex_spv);
-        pixel_spv, ok= := File.read_entire_file("shaders/hello_square_ps.metal"); assert(ok);
-        defer array_free(pixel_spv);
-    }
+    success, vertex_spv := compile_shader("../shaders/hello_square_vs.slang"); assert(success);
+    defer array_free(vertex_spv);
+    success=, pixel_spv := compile_shader("../shaders/hello_square_ps.slang"); assert(success);
+    defer array_free(pixel_spv);
 
     blend_state: Gpu_Blend_Desc;
     raster_desc := Gpu_Raster_Desc.{
@@ -114,7 +108,7 @@ main :: () {
         assert(result == .SUCCESS);
 
         if opts.capture_frame && !capture_started {
-            capture_result := gpu_capture_start_in_xcode(main_queue);
+            capture_result := gpu_capture_start();
             if capture_result != .SUCCESS {
                 log_error("gpu_capture_start_in_xcode failed with result %", capture_result);
             } else {
@@ -145,10 +139,13 @@ main :: () {
 
         gpu_submit_and_present(cmd_buff);
         if capture_started && !capture_done {
-            gpu_capture_stop(open = true);
+            gpu_capture_end();
             capture_done = true;
         }
-        if frame_count == 0 gpu_dump_to_bitmap("03_hello_square.jpg");
+        #if OS == .MACOS {
+            if opts.dump_framebuffer && frame_count == 0
+                gpu_dump_to_bitmap("03_hello_square.jpg");
+        }
         frame_count += 1;
     }
 

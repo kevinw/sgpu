@@ -1,6 +1,8 @@
 #scope_export
 
-gpu_capture_start_in_xcode :: (queue_handle: Gpu_Queue = 0) -> Gpu_Result {
+gpu_capture_start :: () -> Gpu_Result {
+    main_queue := gpu_get_queue(.MAIN, 0); // TODO
+
     capture_manager := MTLCaptureManager.sharedCaptureManager();
     if capture_manager == null return .FATAL_ERROR_UNKNOWN;
 
@@ -56,7 +58,7 @@ gpu_capture_start_in_xcode :: (queue_handle: Gpu_Queue = 0) -> Gpu_Result {
     return .FATAL_ERROR_UNKNOWN;
 }
 
-gpu_capture_stop :: (open := true) {
+gpu_capture_end :: (open := true) {
     capture_manager := MTLCaptureManager.sharedCaptureManager();
     if capture_manager == null return;
     if capture_manager.isCapturing(capture_manager) {

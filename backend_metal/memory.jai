@@ -1,28 +1,4 @@
-Gpu_Ptr :: #type,distinct u64;
 
-Memory_Type :: enum {
-    DEFAULT;
-    GPU;
-    READBACK;
-}
-
-gpu_log_memory_leaks :: () -> (has_leaks: bool) {
-    has_leaks := false;
-
-    show :: (table: $H, name: string) #expand {
-        if table.count == 0 return;
-
-        if !has_leaks log("NOTE: sgpu leaks detected:");
-        log("%.count: %", name, gpu_allocations.count);
-        for table log("  %", FormatStruct.{value=it});
-        `has_leaks = true;
-    }
-
-    show(cpu_allocations, "cpu_allocations");
-    show(gpu_allocations, "gpu_allocations");
-
-    return has_leaks;
-}
 
 gpu_malloc :: ($type: Type, memory_type: Memory_Type = .DEFAULT, label := "") -> (mapped: *type, gpu: Gpu_Ptr) {
     cpu_ptr, gpu_ptr := gpu_malloc(size_of(type), memory_type, label);

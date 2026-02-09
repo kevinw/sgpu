@@ -21,20 +21,25 @@ DEFAULT_EXAMPLES_TO_BUILD :: string.[
     "03_hello_square",
 ];
 
+BIN_DIR :: "bin";
+
 #scope_file
 
 #run,stallable {
     set_build_options_dc(.{do_output = false});
-    make_directory_if_it_does_not_exist("bin");
+    make_directory_if_it_does_not_exist(BIN_DIR);
 
     // Arguments passed after " - " are treated as example names to build.
     files_to_build: [..]string;
     run_tests := false;
+    run := false;
     for get_build_options().compile_time_command_line {
         if it.count > 0 && it[0] != #char "-" {
             array_add(*files_to_build, it);
         } else if it == "-run_tests" {
             run_tests = true;
+        } else if it == "-run" {
+            run = true;
         }
     }
 
@@ -50,21 +55,30 @@ DEFAULT_EXAMPLES_TO_BUILD :: string.[
         }
     }
 
-    copy_module_libraries_to_target("bin");
+    copy_module_libraries_to_target(BIN_DIR);
 
-    if run_tests {
+    if run_tests || run {
         if files_to_build.count == 0 {
-            log_error("No examples were built, so no tests to run.");
+            log_error("No examples were built, so nothing to run.");
             exit(1);
         }
+        cwd := get_working_directory();
+        set_working_directory(BIN_DIR);
         for files_to_build {
-            log("Running test for '%'...", it);
             args: [..]string;
             defer array_free(args);
-            array_add(*args, tprint("./%", it), "-max_frames", "1");
-            run_command_checked(it, args, working_directory = "bin");
+            exe := ifx OS == .WINDOWS it else tprint("./%", it);
+            array_add(*args, exe);
+            if run_tests {
+                array_add(*args, "-max_frames", "1");
+                log("Running test for '%'...", it);
+            }
+            run_command_checked(it, args);
         }
-        log("Ran % tests successfully: %", files_to_build.count, join(..files_to_build, separator=", "));
+        set_working_directory(cwd);
+        if run_tests {
+            log("Ran % tests successfully: %", files_to_build.count, join(..files_to_build, separator=", "));
+        }
     }
 }
 
@@ -81,7 +95,9 @@ compile_example :: (name: string) -> bool {
         array_add(*modules_paths, "../modules");
         array_add(*modules_paths, ..import_path);
         import_path = modules_paths;
-        additional_linker_arguments = .["-sectcreate", "__TEXT", "__info_plist", "Info.plist"];
+        #if OS == .MACOS {
+            additional_linker_arguments = .["-sectcreate", "__TEXT", "__info_plist", "Info.plist"];
+        }
     }
 
     if OS == .LINUX {
