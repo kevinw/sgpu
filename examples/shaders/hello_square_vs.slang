@@ -7,7 +7,7 @@ struct VS_Output {
 
 struct Vertex_Buffers {
     float2* positions;
-    float3* colors;
+    float4* colors;
 };
 
 [vk::push_constant]
@@ -17,6 +17,6 @@ VertexParams<Vertex_Buffers> sp;
 VS_Output main(uint vertex_id: SV_VertexID) {
     VS_Output output;
     output.position = float4(sp.get().positions[vertex_id], 0., 1.);
-    output.color = float3(sp.get().colors[vertex_id]);
+    output.color = sp.get().colors[vertex_id].xyz;
     return output;
 }

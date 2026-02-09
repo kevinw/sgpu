@@ -1,0 +1,439 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXFileReference section */
+		DE1E722C2F3147560045E6C3 /* 03_hello_square_sdl.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = 03_hello_square_sdl.jai; path = ../examples/03_hello_square_sdl.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74A72F2B929F00AF6C08 /* bindless.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = bindless.jai; path = ../bindless.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74A82F2B929F00AF6C08 /* command_buffer.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = command_buffer.jai; path = ../command_buffer.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74A92F2B929F00AF6C08 /* gpu_arena.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = gpu_arena.jai; path = ../gpu_arena.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74AA2F2B929F00AF6C08 /* memory.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = memory.jai; path = ../memory.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74AB2F2B929F00AF6C08 /* module.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = module.jai; path = ../module.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74AC2F2B929F00AF6C08 /* pipeline.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = pipeline.jai; path = ../pipeline.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74AD2F2B929F00AF6C08 /* pool.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = pool.jai; path = ../pool.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74AE2F2B929F00AF6C08 /* render_capture.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = render_capture.jai; path = ../render_capture.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74AF2F2B929F00AF6C08 /* shader_compiler.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = shader_compiler.jai; path = ../shader_compiler.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74B02F2B929F00AF6C08 /* swapchain.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = swapchain.jai; path = ../swapchain.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74B12F2B929F00AF6C08 /* sync.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = sync.jai; path = ../sync.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74B22F2B929F00AF6C08 /* textures.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = textures.jai; path = ../textures.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74B52F2B92F200AF6C08 /* 01_memory.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = 01_memory.jai; path = ../examples/01_memory.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74B62F2B92F200AF6C08 /* 02_compute.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = 02_compute.jai; path = ../examples/02_compute.jai; sourceTree = SOURCE_ROOT; };
+		DEFD74B72F2B92F200AF6C08 /* 03_hello_square.jai */ = {isa = PBXFileReference; explicitFileType = sourcecode.c; name = 03_hello_square.jai; path = ../examples/03_hello_square.jai; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		DEFD74702F2B837C00AF6C08 = {
+			isa = PBXGroup;
+			children = (
+				DE1E722C2F3147560045E6C3 /* 03_hello_square_sdl.jai */,
+				DEFD74B52F2B92F200AF6C08 /* 01_memory.jai */,
+				DEFD74B62F2B92F200AF6C08 /* 02_compute.jai */,
+				DEFD74B72F2B92F200AF6C08 /* 03_hello_square.jai */,
+				DEFD74A72F2B929F00AF6C08 /* bindless.jai */,
+				DEFD74A82F2B929F00AF6C08 /* command_buffer.jai */,
+				DEFD74A92F2B929F00AF6C08 /* gpu_arena.jai */,
+				DEFD74AA2F2B929F00AF6C08 /* memory.jai */,
+				DEFD74AB2F2B929F00AF6C08 /* module.jai */,
+				DEFD74AC2F2B929F00AF6C08 /* pipeline.jai */,
+				DEFD74AD2F2B929F00AF6C08 /* pool.jai */,
+				DEFD74AE2F2B929F00AF6C08 /* render_capture.jai */,
+				DEFD74AF2F2B929F00AF6C08 /* shader_compiler.jai */,
+				DEFD74B02F2B929F00AF6C08 /* swapchain.jai */,
+				DEFD74B12F2B929F00AF6C08 /* sync.jai */,
+				DEFD74B22F2B929F00AF6C08 /* textures.jai */,
+				DEFD747A2F2B837C00AF6C08 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DEFD747A2F2B837C00AF6C08 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXLegacyTarget section */
+		DE1E722D2F3147810045E6C3 /* 03_hello_square_sdl */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(SRCROOT)/xcode-jai-build.sh $(ACTION)";
+			buildConfigurationList = DE1E722E2F3147810045E6C3 /* Build configuration list for PBXLegacyTarget "03_hello_square_sdl" */;
+			buildPhases = (
+			);
+			buildToolPath = /bin/bash;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = 03_hello_square_sdl;
+			packageProductDependencies = (
+			);
+			passBuildSettingsInEnvironment = 1;
+			productName = 03_hello_square;
+		};
+		DEFD749B2F2B8B9700AF6C08 /* 03_hello_square */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(SRCROOT)/xcode-jai-build.sh $(ACTION)";
+			buildConfigurationList = DEFD749C2F2B8B9700AF6C08 /* Build configuration list for PBXLegacyTarget "03_hello_square" */;
+			buildPhases = (
+			);
+			buildToolPath = /bin/bash;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = 03_hello_square;
+			packageProductDependencies = (
+			);
+			passBuildSettingsInEnvironment = 1;
+			productName = 03_hello_square;
+		};
+		DEFD749F2F2B8F5A00AF6C08 /* 02_compute */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(SRCROOT)/xcode-jai-build.sh $(ACTION)";
+			buildConfigurationList = DEFD74A02F2B8F5A00AF6C08 /* Build configuration list for PBXLegacyTarget "02_compute" */;
+			buildPhases = (
+			);
+			buildToolPath = /bin/bash;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = 02_compute;
+			packageProductDependencies = (
+			);
+			passBuildSettingsInEnvironment = 1;
+			productName = 03_hello_square;
+		};
+		DEFD74A32F2B8F6200AF6C08 /* 01_memory */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(SRCROOT)/xcode-jai-build.sh $(ACTION)";
+			buildConfigurationList = DEFD74A42F2B8F6200AF6C08 /* Build configuration list for PBXLegacyTarget "01_memory" */;
+			buildPhases = (
+			);
+			buildToolPath = /bin/bash;
+			buildWorkingDirectory = "";
+			dependencies = (
+			);
+			name = 01_memory;
+			packageProductDependencies = (
+			);
+			passBuildSettingsInEnvironment = 1;
+			productName = 03_hello_square;
+		};
+/* End PBXLegacyTarget section */
+
+/* Begin PBXProject section */
+		DEFD74712F2B837C00AF6C08 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					DEFD749B2F2B8B9700AF6C08 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = DEFD74742F2B837C00AF6C08 /* Build configuration list for PBXProject "sgpu_metal" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DEFD74702F2B837C00AF6C08;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = DEFD747A2F2B837C00AF6C08 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DE1E722D2F3147810045E6C3 /* 03_hello_square_sdl */,
+				DEFD749B2F2B8B9700AF6C08 /* 03_hello_square */,
+				DEFD749F2F2B8F5A00AF6C08 /* 02_compute */,
+				DEFD74A32F2B8F6200AF6C08 /* 01_memory */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		DE1E722F2F3147810045E6C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUGGING_SYMBOLS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		DE1E72302F3147810045E6C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		DEFD747E2F2B837C00AF6C08 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		DEFD747F2F2B837C00AF6C08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DEFD749D2F2B8B9700AF6C08 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUGGING_SYMBOLS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		DEFD749E2F2B8B9700AF6C08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		DEFD74A12F2B8F5A00AF6C08 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUGGING_SYMBOLS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		DEFD74A22F2B8F5A00AF6C08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		DEFD74A52F2B8F6200AF6C08 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUGGING_SYMBOLS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		DEFD74A62F2B8F6200AF6C08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9VL2APQ6QE;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DE1E722E2F3147810045E6C3 /* Build configuration list for PBXLegacyTarget "03_hello_square_sdl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE1E722F2F3147810045E6C3 /* Debug */,
+				DE1E72302F3147810045E6C3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DEFD74742F2B837C00AF6C08 /* Build configuration list for PBXProject "sgpu_metal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEFD747E2F2B837C00AF6C08 /* Debug */,
+				DEFD747F2F2B837C00AF6C08 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DEFD749C2F2B8B9700AF6C08 /* Build configuration list for PBXLegacyTarget "03_hello_square" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEFD749D2F2B8B9700AF6C08 /* Debug */,
+				DEFD749E2F2B8B9700AF6C08 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DEFD74A02F2B8F5A00AF6C08 /* Build configuration list for PBXLegacyTarget "02_compute" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEFD74A12F2B8F5A00AF6C08 /* Debug */,
+				DEFD74A22F2B8F5A00AF6C08 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DEFD74A42F2B8F6200AF6C08 /* Build configuration list for PBXLegacyTarget "01_memory" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEFD74A52F2B8F6200AF6C08 /* Debug */,
+				DEFD74A62F2B8F6200AF6C08 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DEFD74712F2B837C00AF6C08 /* Project object */;
+}

@@ -1,4 +1,6 @@
 main :: () {
+    gpu_example_harness();
+
     result := gpu_init();
     defer gpu_shutdown();
     assert(result == .SUCCESS);
@@ -73,7 +75,9 @@ main :: () {
     for 0..COUNT-1 {
         assert(readback_cpu.*[it] == 255);
     }
+
+    log("OK!");
 }
 
-#import,file "../module.jai"(VALIDATION = true);
-#import "Basic";
+#import,file "../module.jai"(VALIDATION = true, SLANG_COMPILER = false);
+#load "example_common.jai";

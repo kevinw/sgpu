@@ -136,5 +136,5 @@ create_session :: () {
 
 global_session: *slang.IGlobalSession;
 
-slang :: #import,file "modules/slang/module.jai";
+slang :: #import,file "../modules/slang/module.jai";
 #import "File";

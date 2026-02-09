@@ -1,4 +1,6 @@
 main :: () {
+    gpu_example_harness();
+
     result := gpu_init();
     defer gpu_shutdown();
     assert(result == .SUCCESS);
@@ -13,11 +15,12 @@ main :: () {
         buffer_cpu.*[it] = 0.0;
     }
 
-    // Raw precompiled spirv can be passed to `gpu_create_compute_pipeline`
-    // or the included slang shader compiler can be used to compile slang shaders.
-    success, spirv := compile_shader("../shaders/compute.slang");
-    assert(success);
-    pipeline := gpu_create_compute_pipeline(spirv);
+    // Compile Slang shader to Metal with MTL4 argument table bindless support
+    // The Slang shader uses preprocessor directives to generate Metal-compatible code
+    success, compiled_shader := compile_shader("../shaders/compute.slang"); assert(success, "Failed to compile shader");
+    defer if compiled_shader array_free(compiled_shader);
+
+    pipeline := gpu_create_compute_pipeline(compiled_shader);
     defer gpu_free_pipeline(pipeline);
 
     // We will use the dedicated compute queue here but we could also use the MAIN queue.
@@ -37,16 +40,20 @@ main :: () {
     // See later samples for examples of this.
     //
     // In this case, the output data pointer is simply passed to the shader as this user_data ptr so it can write to it.
+    // With MTL4 bindless, gpu_dispatch uses the global argument table
+    // The buffer pointer is set in the argument table at index 0
     gpu_dispatch(cmd_buff, buffer_gpu, .[(COUNT + 63) / 64, 1, 1]);
 
     gpu_submit(cmd_buff);
-
     gpu_wait_idle();
 
+
     for 0..COUNT-1 {
-        assert(buffer_cpu.*[it] == 1.0);
+        assert(buffer_cpu.*[it] == 1.0, "Expected the compute shader to set each buffer value to 1.0, but the %th value was %", it, buffer_cpu.*[it]);
     }
+
+    print("OK!\n");
 }
 
-#import,file "../module.jai"(VALIDATION = true);
-#import "Basic";
+#import,file "../module.jai"(VALIDATION = true, SLANG_COMPILER = true);
+#load "example_common.jai";

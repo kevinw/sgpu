@@ -3,7 +3,7 @@ main :: () {
     assert(result == .SUCCESS);
     defer gpu_shutdown();
 
-    window := create_native_window(1280, 720, "Sample Window");
+    window := create_window(1280, 720, "Sample Window");
 
     window_type: Native_Window_Type;
     #if      OS == .WINDOWS then window_type = .WIN32;
@@ -11,14 +11,14 @@ main :: () {
     else #if OS == .MACOS   then window_type = .COCOA;
     else assert(false, "Unsupported OS");
 
-    gpu_init_swapchain(window, window_type);
+    gpu_init_swapchain(xx window, window_type);
     defer gpu_destroy_swapchain();
 
     main_queue := gpu_get_queue(.MAIN, 0);
 
-    success, mesh_spv := compile_shader("../shaders/meshlets_ms.slang");
+    success, mesh_spv := compile_shader("shaders/meshlets_ms.slang");
     assert(success);
-    success=, pixel_spv := compile_shader("../shaders/meshlets_ps.slang");
+    success=, pixel_spv := compile_shader("shaders/meshlets_ps.slang");
     assert(success);
 
     blend_state: Gpu_Blend_Desc;
@@ -93,5 +93,4 @@ main :: () {
 #import,file "../module.jai"(VALIDATION = true);
 #import "Basic";
 #import "Input";
-
-#load "utils/window.jai";
+#import "Window_Creation";

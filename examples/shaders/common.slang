@@ -7,6 +7,8 @@ struct VertexParams<T> {
 };
 
 struct PixelParams<T> {
+  void* vertex_data;
+
   [[vk::offset(8)]]
   Ptr<T, Access.Immutable> data;
 

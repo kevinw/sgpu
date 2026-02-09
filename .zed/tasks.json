@@ -1,0 +1,31 @@
+[
+  {
+    "label": "01_memory",
+    "command": "./run_example.sh 01_memory",
+  },
+  {
+    "label": "02_compute",
+    "command": "./run_example.sh 02_compute",
+  },
+  {
+    "label": "03_hello_square",
+    "command": "./run_example.sh 03_hello_square",
+  },
+  {
+    "label": "03_hello_square_sdl",
+    "command": "./run_example.sh 03_hello_square_sdl",
+  },
+
+  {
+    "label": "Generate Metal Bindings",
+    "command": "cd modules/Metal && rm -f module.jai && jai -quiet generate.jai +Autorun && jai module.jai",
+  },
+  {
+    "label": "jai_window metal example",
+    "command": "cd modules/Metal/examples && jai -quiet jai_window.jai +Autorun",
+  },
+  {
+    "label": "SDL Metal Example",
+    "command": "cd modules/Metal/examples && jai -quiet sdl_metal.jai +Autorun",
+  },
+]

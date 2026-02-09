@@ -1,5 +1,14 @@
 .build/
-bin/
-examples/basic
-examples/instanced_drawing
+*.dSYM/
 .DS_Store
+examples/01_memory
+examples/02_compute
+modules/Metal/generate
+modules/Metal/examples/sdl_metal
+examples/shadertoy/shadertoy
+xcode/sgpu_metal/sgpu_metal.xcodeproj/project.xcworkspace/xcuserdata
+*.xcuserdatad/
+examples/03_hello_square
+*.generated.metal
+modules/Metal/examples/metalkit_test
+examples/libslang-compiler.0.2025.24.2.dylib

@@ -1,9 +1,15 @@
+WRITE_SHADER_OUTPUT :: true;
+
 main :: () {
+    opts := gpu_example_harness();
+
     result := gpu_init();
     assert(result == .SUCCESS);
     defer gpu_shutdown();
 
-    window := create_native_window(1280, 720, "Sample Window");
+    #import "Objective_C"; pool := objc_new(NSAutoreleasePool); defer release(pool);
+
+    window := create_window(1280, 720, "03_hello_square");
 
     window_type: Native_Window_Type;
     #if      OS == .WINDOWS then window_type = .WIN32;
@@ -11,15 +17,22 @@ main :: () {
     else #if OS == .MACOS   then window_type = .COCOA;
     else assert(false, "Unsupported OS");
 
-    gpu_init_swapchain(window, window_type);
+    gpu_init_swapchain(cast(u64)window, window_type);
     defer gpu_destroy_swapchain();
 
     main_queue := gpu_get_queue(.MAIN, 0);
 
-    success, vertex_spv := compile_shader("../shaders/hello_square_vs.slang");
-    assert(success);
-    success=, pixel_spv := compile_shader("../shaders/hello_square_ps.slang");
-    assert(success);
+    #if 1 {
+        success, vertex_spv := compile_shader("../shaders/hello_square_vs.slang", write_output = WRITE_SHADER_OUTPUT); assert(success); assert(success);
+        defer array_free(vertex_spv);
+        success=, pixel_spv := compile_shader("../shaders/hello_square_ps.slang", write_output = WRITE_SHADER_OUTPUT); assert(success); assert(success);
+        defer array_free(pixel_spv);
+    } else {
+        vertex_spv, ok := File.read_entire_file("shaders/hello_square_vs.metal"); assert(ok);
+        defer array_free(vertex_spv);
+        pixel_spv, ok= := File.read_entire_file("shaders/hello_square_ps.metal"); assert(ok);
+        defer array_free(pixel_spv);
+    }
 
     blend_state: Gpu_Blend_Desc;
     raster_desc := Gpu_Raster_Desc.{
@@ -30,7 +43,7 @@ main :: () {
         blend_state = *blend_state,
     };
     depth_desc := Gpu_Depth_Stencil_Desc.{
-        depth_test = .NEVER,
+        depth_test = .ALWAYS,
         depth_mode = .NONE,
     };
 
@@ -53,12 +66,15 @@ main :: () {
         .{ -0.5, +0.5 },
     ];
 
-    vertex_colors, colors_gpu := gpu_arena_alloc(*gpu_arena, [12] float);
+    V3 :: struct { x: float; y: float; z: float; }
+    V4 :: struct { x: float; y: float; z: float; w: float; }
+
+    vertex_colors, colors_gpu := gpu_arena_alloc(*gpu_arena, [4] V4);
     vertex_colors.* = .[
-        1., 0., 0.,
-        0., 1., 0.,
-        0., 0., 1.,
-        1., 1., 1.,
+        {1, 0, 0, 1},
+        {0, 1, 0, 1},
+        {0, 0, 1, 1},
+        {1, 1, 1, 1},
     ];
 
     param_block, vertex_params_gpu := gpu_arena_alloc(*gpu_arena, [2] Gpu_Ptr);
@@ -73,8 +89,15 @@ main :: () {
     pixel_data, pixel_gpu := gpu_arena_alloc(*gpu_arena, [3] float);
     pixel_data.* = .[1., 0., 1.];
 
+    gpu_commit_residency();
+
+    frame_count: s64 = 0;
+    capture_started := false;
+    capture_done := false;
     quit := false;
-    while !quit {
+    while !quit && (frame_count < opts.max_frames || opts.max_frames == 0) {
+        gpu_push_frame();
+
         update_window_events();
         for events_this_frame {
             if it.type == .QUIT then quit = true;
@@ -85,12 +108,20 @@ main :: () {
 
         result=, swapchain_image := gpu_swapchain_acquire();
         assert(result == .SUCCESS);
-        if !swapchain_image {
-            continue;
-        }
+        if !swapchain_image continue;
 
         result=, cmd_buff := gpu_start_command_recording(main_queue);
         assert(result == .SUCCESS);
+
+        if opts.capture_frame && !capture_started {
+            capture_result := gpu_capture_start_in_xcode(main_queue);
+            if capture_result != .SUCCESS {
+                log_error("gpu_capture_start_in_xcode failed with result %", capture_result);
+            } else {
+                capture_started = true;
+            }
+        }
+
         {
             render_desc := Gpu_Render_Pass_Desc.{
                 color_targets = .[
@@ -113,13 +144,20 @@ main :: () {
         }
 
         gpu_submit_and_present(cmd_buff);
+        if capture_started && !capture_done {
+            gpu_capture_stop(open = true);
+            capture_done = true;
+        }
+        if frame_count == 0 gpu_dump_to_bitmap("03_hello_square.jpg");
+        frame_count += 1;
     }
 
     gpu_wait_idle();
+    print("OK!\n");
 }
 
-#import,file "../module.jai"(VALIDATION = true);
-#import "Basic";
+#import,file "../module.jai"(VALIDATION = true, DEBUG_ASSERTS = true); // #import "sgpu" in your own code
+#load "example_common.jai";
+#import "Window_Creation";
 #import "Input";
-
-#load "utils/window.jai";
+File :: #import "File";
