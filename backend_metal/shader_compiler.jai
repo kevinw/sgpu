@@ -1,6 +1,6 @@
 #scope_export
 
-compile_shader :: (shader_path: string, write_output: bool = false, debug_symbols: bool = false) -> bool, []u8 {
+compile_shader :: (shader_path: string, entry_points: []string, write_output: bool = false, debug_symbols: bool = false) -> bool, []u8 {
     if !global_session then create_session();
 
     auto_release_temp();
@@ -61,22 +61,25 @@ compile_shader :: (shader_path: string, write_output: bool = false, debug_symbol
     log_blob_if_nonnull(*diagnostic_blob);
     if !slang_module then return false, {};
 
-    entry_points: [..] *slang.IEntryPoint;
-    entry_points.allocator = temp;
-    {
-        main := array_add(*entry_points);
-        // Try "computeMain" first, then fall back to "main"
-        slang.IModule_findEntryPointByName(slang_module, "computeMain", main);
+    entry_point_ptrs: [..] *slang.IEntryPoint;
+    entry_point_ptrs.allocator = temp;
+    for entry_points {
+        main := array_add(*entry_point_ptrs);
+        slang.IModule_findEntryPointByName(slang_module, temp_c_string(it), main);
         if main.* == null {
-            slang.IModule_findEntryPointByName(slang_module, "main", main);
+            log_error("slang: entry point '%' not found in %", it, shader_path);
+        } else {
+            log("slang: entry point '%' found.", it);
         }
     }
 
     components: [..] *slang.IComponentType;
     components.allocator = temp;
     array_add(*components, slang_module);
-    for entry_points {
-        array_add(*components, it);
+    for entry_point_ptrs {
+        if it {
+            array_add(*components, it);
+        }
     }
 
     composed_program: *slang.IComponentType;
@@ -90,6 +93,13 @@ compile_shader :: (shader_path: string, write_output: bool = false, debug_symbol
     log_blob_if_nonnull(*diagnostic_blob);
     if !slang.SLANG_SUCCEEDED(link_result) || !linked_program then return false, {};
     defer slang.ISlangUnknown_release(linked_program);
+
+    //
+    //
+    Alternatively, there is also a function IComponentType::getTargetCode() which will compile all entry-points, which is useful for SPIR-V and Metal targets which support multiple entry-points per shader.
+
+    https://shader-slang.org/docs/compilation-api/
+    //
 
     metal_code: *slang.IBlob = null;
     slang.IComponentType_getEntryPointCode(linked_program, 0, 0, *metal_code, *diagnostic_blob);

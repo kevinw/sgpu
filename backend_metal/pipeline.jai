@@ -9,7 +9,6 @@ gpu_draw_meshlets :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u3
 }
 
 gpu_create_compute_pipeline :: (metal_source: []u8) -> Gpu_Pipeline {
-    compile_options := new_scoped_common_mtl_compile_options();
 
     error: *NSError;
     mtl_library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)metal_source), compile_options, *error);
@@ -50,25 +49,18 @@ gpu_create_graphics_pipeline :: (vertex_metal: []u8, pixel_metal: []u8, raster_d
     auto_release_temp();
 
     // Create library from vertex shader Metal source
-    compile_options := new_scoped_common_mtl_compile_options();
+    vertex_library := new_scoped_library_or_return_0(vertex_metal, "vertex shader");
+    pixel_library  := new_scoped_library_or_return_0(pixel_metal,  "fragment shader");
+    return _internal_gpu_create_graphics_pipeline(vertex_library, pixel_library, raster_desc);
+}
 
-    new_scoped_library :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
-        error: *NSError;
-        library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)source), compile_options, *error);
-        if log_error_if_not_null(error) {
-            log_error("Failed to compile %.", debug_name);
-            `return 0;
-        }
-        if library == null {
-            log_error("Failed to create % library", debug_name);
-            `return 0;
-        }
-        `defer release(library);
-        return library;
-    }
+gpu_create_graphics_pipeline :: (metal: []u8, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
+    auto_release_temp();
+    library := new_scoped_library_or_return_0(metal, "vertex+fragment shader");
+    return _internal_gpu_create_graphics_pipeline(library, library, raster_desc);
+}
 
-    vertex_library := new_scoped_library(vertex_metal, "vertex shader");
-    pixel_library  := new_scoped_library(pixel_metal,  "fragment shader");
+_internal_gpu_create_graphics_pipeline :: (vertex_library: *MTLLibrary, pixel_library: *MTLLibrary, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
 
     // Get vertex function - try various names (Slang may rename "main" to "main_0")
     vertex_function := get_function_from_library(vertex_library, "vertexMain", "vertexMain_0", "main", "main_0");
@@ -321,6 +313,23 @@ new_scoped_common_mtl_compile_options :: () -> *MTLCompileOptions #expand {
     setLanguageVersion(opts, ._3_2);
     setEnableLogging(opts, ifx SGPU_ENABLE_SHADER_LOGGING then YES else NO);
     return opts;
+}
+
+new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
+    compile_options := new_scoped_common_mtl_compile_options();
+
+    error: *NSError;
+    library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)source), compile_options, *error);
+    if log_error_if_not_null(error) {
+        log_error("Failed to compile %.", debug_name);
+        `return 0;
+    }
+    if library == null {
+        log_error("Failed to create % library", debug_name);
+        `return 0;
+    }
+    `defer release(library);
+    return library;
 }
 
 NSUTF8StringEncoding :: 4;

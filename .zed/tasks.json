@@ -1,19 +1,15 @@
 [
   {
     "label": "01_memory",
-    "command": "./run_example.sh 01_memory",
+    "command": "jai examples/build.jai - 01_memory -run",
   },
   {
     "label": "02_compute",
-    "command": "./run_example.sh 02_compute",
+    "command": "jai examples/build.jai - 02_compute -run",
   },
   {
     "label": "03_hello_square",
-    "command": "./run_example.sh 03_hello_square",
-  },
-  {
-    "label": "03_hello_square_sdl",
-    "command": "./run_example.sh 03_hello_square_sdl",
+    "command": "jai examples/build.jai - 03_hello_square -run",
   },
 
   {
