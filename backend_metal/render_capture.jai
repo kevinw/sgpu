@@ -1,7 +1,7 @@
 #scope_export
 
 gpu_capture_start :: () -> Gpu_Result {
-    main_queue := gpu_get_queue(.MAIN, 0); // TODO
+    queue_handle := gpu_get_queue(.MAIN, 0); // TODO
 
     capture_manager := MTLCaptureManager.sharedCaptureManager();
     if capture_manager == null return .FATAL_ERROR_UNKNOWN;
