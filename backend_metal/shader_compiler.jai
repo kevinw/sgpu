@@ -2,29 +2,31 @@
 // Slang -> Metal
 //
 
+// TODO: Tunables below:
+// defaultMatrixLayoutMode = .ROW_MAJOR,
+// searchPaths = *search_paths,
+
 compile_shader :: (shader_path: string, entry_points: []string, write_output: bool = false, debug_symbols: bool = false) -> bool, []u8 {
     if !global_session create_session();
 
     auto_release_temp();
 
+    metal_capability := IGlobalSession_findCapability(global_session, "metal");
+    assert(metal_capability != 0, "slang: Could not find 'metal' Capability");
+
     options: [..] CompilerOptionEntry;
     options.allocator = temp;
-    array_add(*options, { .Language, { .String, 0, 0, "slang", null } });
+    array_add(*options,     { .Language, { .String, 0, 0, "slang", null } });
+    array_add(*options,     { .Capability, .{ .Int, xx metal_capability, 0, null, null } });
+    if debug_symbols
+        array_add(*options, { .DebugInformation, .{ .Int, 2, 0, null, null } });
 
-    // Use Metal capability instead of SPIR-V
-    metal_capability := IGlobalSession_findCapability(global_session, "metal");
-    assert(metal_capability != 0);
-    array_add(*options, .{ .Capability, .{ .Int, xx metal_capability, 0, null, null } });
+    target_profile := IGlobalSession_findProfile(global_session, "sm_6_0");
+    assert(target_profile != 0, "Did not find 'sm_6_0' profile");
 
-    if debug_symbols {
-        array_add(*options, .{ .DebugInformation, .{ .Int, 2, 0, null, null } });
-    }
-
-    // Target Metal shading language
-    // Use metal profile for macOS
     target_desc := TargetDesc.{
         format = .SLANG_METAL,
-        profile = IGlobalSession_findProfile(global_session, "sm_6_0"),
+        profile = target_profile,
         compilerOptionEntries = options.data,
         compilerOptionEntryCount = xx options.count,
     };
@@ -48,7 +50,6 @@ compile_shader :: (shader_path: string, entry_points: []string, write_output: bo
     defer ISlangUnknown_release(session);
 
     diagnostic_blob: *IBlob = null;
-
     slang_module := ISession_loadModule(session, temp_c_string(shader_path), *diagnostic_blob);
     log_blob_if_nonnull(*diagnostic_blob);
     if !slang_module then return false, {};
@@ -60,6 +61,7 @@ compile_shader :: (shader_path: string, entry_points: []string, write_output: bo
         IModule_findEntryPointByName(slang_module, temp_c_string(it), main);
         if main.* == null {
             log_error("slang: entry point '%' not found in %", it, shader_path);
+            return false, {};
         } else {
             #if VERBOSE log("slang: entry point '%' found.", it);
         }
