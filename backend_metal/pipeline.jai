@@ -61,19 +61,20 @@ gpu_create_graphics_pipeline :: (metal: []u8, raster_desc: Gpu_Raster_Desc) -> G
 }
 
 _internal_gpu_create_graphics_pipeline :: (vertex_library: *MTLLibrary, pixel_library: *MTLLibrary, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
-
     // Get vertex function - try various names (Slang may rename "main" to "main_0")
-    vertex_function := get_function_from_library(vertex_library, "vertexMain", "vertexMain_0", "main", "main_0");
+    vertex_function := get_only_function_by_type(vertex_library, .Vertex);
+    //vertex_function := get_function_from_library(vertex_library, "vertexMain", "vertexMain_0", "main", "main_0");
     if vertex_function == null {
-        log_error("Failed to find vertex function in shader");
+        log_error("Failed to automatically find vertex function in shader");
         return 0;
     }
     defer release(vertex_function);
 
     // Get fragment function - try various names (Slang may rename "main" to "main_0")
-    fragment_function := get_function_from_library(pixel_library, "fragmentMain", "fragmentMain_0", "main", "main_0");
+    fragment_function := get_only_function_by_type(pixel_library, .Fragment);
+    //fragment_function := get_function_from_library(pixel_library, "fragmentMain", "fragmentMain_0", "main", "main_0");
     if fragment_function == null {
-        log_error("Failed to find fragment function in shader");
+        log_error("Failed to automatically find fragment function in shader");
         return 0;
     }
     defer release(fragment_function);
@@ -332,4 +333,51 @@ new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibr
     return library;
 }
 
+// TODO: this could accept constants and create the function with them
+get_only_function_by_type :: (library: *MTLLibrary, type: MTLFunctionType) -> *MTLFunction {
+    auto_release_temp();
+
+    fns:      [..]*MTLFunction; fns.allocator = temp;
+    fn_names: [..]string;       fn_names.allocator = temp;
+    defer for fn_names free(it);
+
+    for library.functionNames(library) {
+        fn := library.newFunctionWithName(library, it);
+        if fn.functionType(fn) != type {
+            release(fn);
+            continue;
+        }
+
+        array_add(*fns, fn);
+        array_add(*fn_names, copy_string(to_string(it)));
+    }
+
+    if fns.count == 0 {
+        log_error("No % function found in library", type);
+        return null;
+    }
+
+    if fns.count > 1 {
+        log_error("% % functions found in library, expected exactly 1. Names: %",
+            fns.count, type, join(..fn_names, separator=", "));
+        for fns release(it);
+        return null;
+    }
+
+    assert(fns.count == 1);
+    return fns[0];
+}
+
 NSUTF8StringEncoding :: 4;
+
+#scope_file
+
+for_expansion :: (array: *$T/NSArray, body: Code, flags: For_Flags) #expand {
+    assert(array != null, "for_expansion for NSArray received a null pointer");
+    #assert(flags == 0);
+    for i: 0..array.count(array) - 1 {
+        `it := array.objectAtIndex(array, i);
+        `it_index := i;
+        #insert(remove=#assert(false)) body;
+    }
+}
