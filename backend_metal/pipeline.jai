@@ -9,6 +9,8 @@ gpu_draw_meshlets :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u3
 }
 
 gpu_create_compute_pipeline :: (metal_source: []u8) -> Gpu_Pipeline {
+    auto_release_temp();
+    compile_options := new_scoped_common_mtl_compile_options();
 
     error: *NSError;
     mtl_library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)metal_source), compile_options, *error);
@@ -18,9 +20,8 @@ gpu_create_compute_pipeline :: (metal_source: []u8) -> Gpu_Pipeline {
         return 0;
     }
 
-    // Get the entry point function from the library
-    // Try "computeMain" first (our convention), then fall back to "main"
-    mtl_function := get_function_from_library(mtl_library, "computeMain", "main", "main_0");
+    // Try both naming conventions plus fallback names.
+    mtl_function := get_function_from_library(mtl_library, "ComputeMain", "computeMain", "main", "main_0");
     if mtl_function == null {
         log_error("Failed to find compute main function in Metal shader");
         return 0;
