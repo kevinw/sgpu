@@ -344,16 +344,40 @@ gpu_draw_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data
     pipeline := pool_get(live_pipelines, cmd_info.current_pipeline);
     if pipeline == null || pipeline.mtl_render_pipeline == null then return .ERROR_INVALID_PIPELINE /* TODO probably the wrong error */;
 
-    // TODO: we might need more than one indirect buffer per queue per frame, if we're submitting lots of command buffers.
-    // each frame/queue pair could draw from a pair of unused indirect buffers, and return them when the frame is over.
-    indirect_buffer := get_indirect_params_buffer(get_queue(cmd_info.queue), vertex_data, pixel_data);
+    if vertex_data == 0 {
+        // Fragment-only direct payload path used by transpiled fullscreen effects where
+        // the vertex stage has no resource reads and fragment expects buffer(0) as payload.
+        argument_tables.fragment.setAddress(argument_tables.fragment, cast(MTLGPUAddress) pixel_data, 8, 0);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.fragment, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+    } else {
+        // TODO: we might need more than one indirect buffer per queue per frame, if we're submitting lots of command buffers.
+        // each frame/queue pair could draw from a pair of unused indirect buffers, and return them when the frame is over.
+        indirect_buffer := get_indirect_params_buffer(get_queue(cmd_info.queue), vertex_data, pixel_data);
 
-    // Set argument table with buffer addresses
-    argument_tables.vertex.setAddress(argument_tables.vertex, indirect_buffer.gpuAddress(indirect_buffer), 0);
-    current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+        // Set argument table with buffer addresses
+        argument_tables.vertex.setAddress(argument_tables.vertex, indirect_buffer.gpuAddress(indirect_buffer), 0);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+    }
 
     current_render_encoder.drawPrimitives(current_render_encoder, .Triangle, 0, vertex_count.(NSUInteger), instance_count.(NSUInteger));
 
+    return .SUCCESS;
+}
+
+// Binds buffer(0) directly to a single GPU address for both vertex and fragment stages.
+// Useful for shaders that expect a direct storage/uniform buffer ABI instead of sgpu's
+// indirect {vertex_params, fragment_params} table layout.
+gpu_draw_instanced_direct :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, vertex_count: u32, instance_count: u32) -> Gpu_Result {
+    using cmd_info := get_cmd_info(cmd);
+    if cmd_info == null || cmd_info.current_render_encoder == null then return .ERROR_INVALID_PIPELINE;
+
+    pipeline := pool_get(live_pipelines, cmd_info.current_pipeline);
+    if pipeline == null || pipeline.mtl_render_pipeline == null then return .ERROR_INVALID_PIPELINE;
+
+    argument_tables.vertex.setAddress(argument_tables.vertex, cast(MTLGPUAddress) data, 0);
+    current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+
+    current_render_encoder.drawPrimitives(current_render_encoder, .Triangle, 0, vertex_count.(NSUInteger), instance_count.(NSUInteger));
     return .SUCCESS;
 }
 
@@ -371,6 +395,15 @@ get_indirect_params_buffer :: (using queue: *Queue, vertex_data: Gpu_Ptr, fragme
     cpu := cast(*Indirect_Params)buf.contents(buf);
     cpu.vertex_params   = xx vertex_data;
     cpu.fragment_params = xx fragment_data;
+
+    if !did_log_indirect_params_once {
+        did_log_indirect_params_once = true;
+        log("SGPU_METAL_INDIRECT_PARAMS vertex_gpu=% fragment_gpu=% stored_vertex_ptr=% stored_fragment_ptr=%",
+            vertex_data,
+            fragment_data,
+            cast(u64) xx cpu.vertex_params,
+            cast(u64) xx cpu.fragment_params);
+    }
 
     return buf;
 }
@@ -427,6 +460,8 @@ Gpu_Timeline_Pair :: struct {
 }
 
 #scope_module
+
+did_log_indirect_params_once := false;
 
 init_queues :: () {
     auto_release_temp();

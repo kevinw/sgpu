@@ -192,11 +192,9 @@ gpu_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u32) {
 
     compute_encoder.setComputePipelineState(compute_encoder, pipeline.mtl_compute_pipeline);
 
-    indirect_buffer := get_indirect_params_buffer(get_queue(cmd_info.queue), data, 0);
-
     // Ensure bindless argument table is initialized
     assert(argument_tables.compute != null);
-    MTL4ArgumentTable.setAddress(argument_tables.compute, indirect_buffer.gpuAddress(indirect_buffer), 0);
+    MTL4ArgumentTable.setAddress(argument_tables.compute, cast(MTLGPUAddress) data, 0);
     MTL4ComputeCommandEncoder.setArgumentTable(compute_encoder, argument_tables.compute);
 
     // Get thread execution width and calculate threads per threadgroup

@@ -75,6 +75,11 @@ gpu_destroy_swapchain :: () {
     swapchain_layer = null;
 }
 
+gpu_set_swapchain_framebuffer_only :: (framebuffer_only: bool) {
+    if !swapchain_layer return;
+    CAMetalLayer.setFramebufferOnly(swapchain_layer, ifx framebuffer_only then YES else NO);
+}
+
 gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
     // Wait if the CPU is trying to submit more than MAX_FRAMES_IN_FLIGHT before the GPU can get to them.
     if frame_index >= MAX_FRAMES_IN_FLIGHT {

@@ -96,6 +96,41 @@ gpu_free_texture_view :: (view_handle: Gpu_Texture_View) {
     }
 }
 
+gpu_texture_view_size :: (view_handle: Gpu_Texture_View) -> (width: u32, height: u32, ok: bool) {
+    view := get_texture_view(view_handle);
+    if !view return 0, 0, false;
+    texture := get_texture(view.texture);
+    if !texture return 0, 0, false;
+    return texture.desc.dimensions[0], texture.desc.dimensions[1], true;
+}
+
+gpu_readback_texture_view_bgra8 :: (view_handle: Gpu_Texture_View, out_pixels: []u8, bytes_per_row: s64) -> bool {
+    view := get_texture_view(view_handle);
+    if !view || !view.mtl_texture return false;
+    texture := get_texture(view.texture);
+    if !texture return false;
+    if texture.desc.format != .B8G8R8A8_UNORM && texture.desc.format != .B8G8R8A8_SRGB return false;
+    if bytes_per_row < cast(s64) texture.desc.dimensions[0] * 4 return false;
+
+    required_bytes := bytes_per_row * cast(s64) texture.desc.dimensions[1];
+    if cast(s64) out_pixels.count < required_bytes return false;
+
+    region := MTLRegion.{
+        origin = .{ x = 0, y = 0, z = 0 },
+        size = .{
+            width = cast(NSUInteger) texture.desc.dimensions[0],
+            height = cast(NSUInteger) texture.desc.dimensions[1],
+            depth = 1,
+        },
+    };
+    MTLTexture.getBytes(view.mtl_texture,
+                        out_pixels.data,
+                        cast(NSUInteger) bytes_per_row,
+                        region,
+                        0);
+    return true;
+}
+
 #scope_module
 
 Texture :: struct {
