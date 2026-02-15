@@ -1,4 +1,4 @@
-#module_parameters(
+#module_parameters()(
     // Optionally enables Vulkan validation layers.
     VALIDATION := false,
     // Optionally enables debug assertions within the sgpu module

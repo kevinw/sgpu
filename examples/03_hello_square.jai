@@ -153,7 +153,7 @@ main :: () {
     print("OK!\n");
 }
 
-#import,file "../module.jai"(VALIDATION = true, DEBUG_ASSERTS = true); // #import "sgpu" in your own code
+#import,file "../module.jai"()(VALIDATION = true, DEBUG_ASSERTS = true); // #import "sgpu" in your own code
 #load "example_common.jai";
 #import "Window_Creation";
 #import "Input";
