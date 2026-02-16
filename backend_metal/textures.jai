@@ -46,6 +46,7 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
 gpu_free :: (texture_handle: Gpu_Texture) {
     removed, texture := pool_remove(*live_textures, texture_handle);
     if removed && texture.mtl_texture != null {
+        remove_from_residency(xx texture.mtl_texture);
         release(texture.mtl_texture);
     }
 }

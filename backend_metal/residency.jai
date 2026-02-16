@@ -36,6 +36,12 @@ add_to_residency :: (allocation: *MTLAllocation) {
     global_residency_set.addAllocation(global_residency_set, allocation);
 }
 
+remove_from_residency :: (allocation: *MTLAllocation) {
+    if global_residency_set == null return;
+    if allocation == null return;
+    global_residency_set.removeAllocation(global_residency_set, allocation);
+}
+
 
 // Attach residency set to a queue (call during queue init)
 attach_residency_to_queue :: (queue: *MTL4CommandQueue) {

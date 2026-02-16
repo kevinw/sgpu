@@ -153,7 +153,6 @@ _internal_gpu_create_graphics_pipeline :: (vertex_library: *MTLLibrary, pixel_li
         return 0;
     }
 
-    add_to_residency(render_pipeline);
     handle := pool_add(*live_pipelines, .{
         type = .GRAPHICS,
         mtl_compute_pipeline = null,

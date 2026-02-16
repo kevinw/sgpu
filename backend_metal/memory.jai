@@ -73,6 +73,7 @@ gpu_free :: (ptr: *void) {
         return;
     }
 
+    remove_from_residency(alloc.mtl_buffer);
     release(alloc.mtl_buffer);
 
     removed = table_remove(*gpu_allocations, alloc.gpu_ptr);
@@ -85,6 +86,7 @@ gpu_free :: (ptr: *void) {
 gpu_free :: (gpu_ptr: Gpu_Ptr) {
     removed, alloc := table_remove(*gpu_allocations, gpu_ptr);
     if removed {
+        remove_from_residency(alloc.mtl_buffer);
         release(alloc.mtl_buffer);
 
         removed = remove_gpu_memory_range(alloc.gpu_ptr);

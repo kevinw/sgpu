@@ -533,7 +533,10 @@ shutdown_queues :: () {
             if allocator release(allocator);
         }
         for indirect_buffer: it.indirect_param_buffers {
-            if indirect_buffer release(indirect_buffer);
+            if indirect_buffer {
+                remove_from_residency(indirect_buffer);
+                release(indirect_buffer);
+            }
         }
         for cmd_buf: it.free_command_buffers {
             if cmd_buf release(cmd_buf);
