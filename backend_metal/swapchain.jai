@@ -17,6 +17,15 @@ gpu_push_frame :: () #expand {
     `defer release_and_set_null(*frame_autorelease_pool);
 }
 
+gpu_init_swapchain :: (native_window: u64) {
+    window_type: Native_Window_Type;
+    #if      OS == .WINDOWS then window_type = .WIN32;
+    else #if OS == .LINUX   then window_type = .X11;
+    else #if OS == .MACOS   then window_type = .COCOA;
+    else assert(false, "Unsupported OS");
+    gpu_init_swapchain(native_window, window_type);
+}
+
 gpu_init_swapchain :: (native_window: u64, window_type: Native_Window_Type) {
     assert(window_type == .COCOA, "Only Cocoa windows are supported on Metal");
 

@@ -4,7 +4,9 @@ BINDLESS_PARAMS_BINDING_INDEX :: 0;
 BINDLESS_TEXTURES_BASE_BINDING_INDEX :: 1;
 BINDLESS_SAMPLERS_BASE_BINDING_INDEX :: 0;
 
-BINDLESS_TEXTURE_BIND_CAPACITY :: MAX_IMAGES;
+METAL_MAX_TEXTURE_BINDS :: 128;
+// Metal validates maxTextureBindCount <= 128. With base texture binding at 1, this leaves 127 bindless texture slots.
+BINDLESS_TEXTURE_BIND_CAPACITY :: 127;
 BINDLESS_SAMPLER_BIND_CAPACITY :: MAX_SAMPLERS;
 
 bindless_set_texture_resource :: (view_handle: Gpu_Texture_View, texture: *MTLTexture) {
@@ -47,6 +49,9 @@ init_bindless :: () {
     assert(argument_tables.compute == null);
 
     auto_release_temp();
+    if MAX_IMAGES > BINDLESS_TEXTURE_BIND_CAPACITY {
+        log("Metal bindless textures clamped to % (requested MAX_IMAGES=%).", BINDLESS_TEXTURE_BIND_CAPACITY, MAX_IMAGES);
+    }
 
     // Create the argument table descriptor
     descriptor := objc_scope_new(MTL4ArgumentTableDescriptor);
