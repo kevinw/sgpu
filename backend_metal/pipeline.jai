@@ -173,6 +173,10 @@ gpu_free_pipeline :: (pipeline_handle: Gpu_Pipeline) {
 }
 
 gpu_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u32) {
+    gpu_dispatch_buffers(cmd, .[data], dimensions);
+}
+
+gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr, dimensions: [3] u32) {
     cmd_info := get_cmd_info(cmd);
     if cmd_info == null return;
 
@@ -194,7 +198,7 @@ gpu_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u32) {
 
     // Ensure bindless argument table is initialized
     assert(argument_tables.compute != null);
-    MTL4ArgumentTable.setAddress(argument_tables.compute, cast(MTLGPUAddress) data, 0);
+    for data_ptrs  MTL4ArgumentTable.setAddress(argument_tables.compute, cast(MTLGPUAddress)it, cast(NSUInteger)it_index);
     MTL4ComputeCommandEncoder.setArgumentTable(compute_encoder, argument_tables.compute);
 
     // Get thread execution width and calculate threads per threadgroup
