@@ -3,16 +3,16 @@
 gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
     // Set usage flags
     mtl_usage: MTLTextureUsage = 0;
-    if desc.usage & .SAMPLED mtl_usage |= .ShaderRead;
-    if desc.usage & .STORAGE mtl_usage |= .ShaderWrite;
-    if desc.usage & .COLOR_ATTACHMENT mtl_usage |= .RenderTarget;
-    if desc.usage & .DEPTH_STENCIL_ATTACHMENT mtl_usage |= .RenderTarget;
+    if (desc.usage & Usage_Flags.SAMPLED) != 0                  mtl_usage |= cast(MTLTextureUsage) MTLTextureUsage_1.ShaderRead;
+    if (desc.usage & Usage_Flags.STORAGE) != 0                  mtl_usage |= cast(MTLTextureUsage) MTLTextureUsage_1.ShaderWrite;
+    if (desc.usage & Usage_Flags.COLOR_ATTACHMENT) != 0         mtl_usage |= cast(MTLTextureUsage) MTLTextureUsage_1.RenderTarget;
+    if (desc.usage & Usage_Flags.DEPTH_STENCIL_ATTACHMENT) != 0 mtl_usage |= cast(MTLTextureUsage) MTLTextureUsage_1.RenderTarget;
 
     mtl_desc := objc_new(MTLTextureDescriptor);
     defer release(mtl_desc);
     {
         using mtl_desc;
-        setTextureType(mtl_desc, desc.type.(MTLTextureType));
+        setTextureType(mtl_desc, texture_type_to_mtl(desc.type));
         setPixelFormat(mtl_desc, format_to_mtl(desc.format));
         setWidth(mtl_desc, desc.dimensions[0].(NSUInteger));
         setHeight(mtl_desc, desc.dimensions[1].(NSUInteger));
@@ -21,13 +21,19 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
         setArrayLength(mtl_desc, max(1, desc.layer_count).(NSUInteger));
         setSampleCount(mtl_desc, max(1, desc.sample_count).(NSUInteger));
         setUsage(mtl_desc, mtl_usage);
-        setStorageMode(mtl_desc, .Private); // Set storage mode (private for GPU-only textures)
+        // CPU upload path uses replaceRegion, which requires CPU-visible storage.
+        if (desc.usage & Usage_Flags.TRANSFER_DST) != 0 {
+            setStorageMode(mtl_desc, .Shared);
+        } else {
+            setStorageMode(mtl_desc, .Private);
+        }
     }
 
     mtl_texture := MTLDevice.newTextureWithDescriptor(mtl_device, mtl_desc);
     if mtl_texture == null {
         return 0;
     }
+    add_to_residency(xx mtl_texture);
 
     handle := pool_add(*live_textures, {
         desc = desc,
@@ -82,12 +88,18 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}
         desc = final_desc,
     });
 
+    if handle != 0 {
+        bindless_set_texture_resource(handle, mtl_texture_view);
+    }
+
     return handle;
 }
 
 gpu_free_texture_view :: (view_handle: Gpu_Texture_View) {
     removed, view := pool_remove(*live_texture_views, view_handle);
     if removed {
+        bindless_set_texture_resource(view_handle, null);
+
         // Only release if this is a view we created (not the original texture)
         texture := pool_get(live_textures, view.texture);
         if texture != null && view.mtl_texture != texture.mtl_texture {
@@ -131,6 +143,76 @@ gpu_readback_texture_view_bgra8 :: (view_handle: Gpu_Texture_View, out_pixels: [
     return true;
 }
 
+gpu_copy_to_texture :: (dest: Gpu_Texture, src: *void, mip: u32 = 0, layer_slice: [2] u32 = .[0, U32_MAX]) {
+    texture := get_texture(dest);
+    if !texture || !texture.mtl_texture || src == null return;
+    if mip != 0 return;
+    if layer_slice[0] != 0 return;
+
+    bytes_per_pixel := format_bytes_per_pixel(texture.desc.format);
+    if bytes_per_pixel == 0 {
+        log_error("gpu_copy_to_texture: unsupported format %", texture.desc.format);
+        return;
+    }
+
+    region := MTLRegion.{
+        origin = .{ x = 0, y = 0, z = 0 },
+        size = .{
+            width = cast(NSUInteger) texture.desc.dimensions[0],
+            height = cast(NSUInteger) texture.desc.dimensions[1],
+            depth = 1,
+        },
+    };
+    bytes_per_row := cast(NSUInteger) texture.desc.dimensions[0] * bytes_per_pixel;
+    MTLTexture.replaceRegion(texture.mtl_texture, region, 0, src, bytes_per_row);
+}
+
+gpu_create_sampler :: (desc: Gpu_Sampler_Desc) -> Gpu_Sampler {
+    mtl_desc := objc_new(MTLSamplerDescriptor);
+    defer release(mtl_desc);
+
+    using mtl_desc;
+    setMinFilter(mtl_desc, sampler_filter_to_mtl_minmag(desc.min_filter));
+    setMagFilter(mtl_desc, sampler_filter_to_mtl_minmag(desc.mag_filter));
+    setMipFilter(mtl_desc, sampler_filter_to_mtl_mip(desc.mip_filter));
+    setSAddressMode(mtl_desc, sampler_address_mode_to_mtl(desc.address_mode_u));
+    setTAddressMode(mtl_desc, sampler_address_mode_to_mtl(desc.address_mode_v));
+    setRAddressMode(mtl_desc, sampler_address_mode_to_mtl(desc.address_mode_w));
+    setLodBias(mtl_desc, desc.mip_lod_bias);
+    setMaxAnisotropy(mtl_desc, max(cast(NSUInteger) 1, desc.max_anisotropy.(NSUInteger)));
+    setCompareFunction(mtl_desc, op_to_mtl_compare(desc.compare_op));
+    setLodMinClamp(mtl_desc, desc.min_lod);
+    setLodMaxClamp(mtl_desc, desc.max_lod);
+    setBorderColor(mtl_desc, sampler_border_color_to_mtl(desc.border_color));
+    setNormalizedCoordinates(mtl_desc, (!desc.unnormalized_coordinates).(BOOL));
+    setSupportArgumentBuffers(mtl_desc, YES);
+
+    mtl_sampler := MTLDevice.newSamplerStateWithDescriptor(mtl_device, mtl_desc);
+    if mtl_sampler == null return 0;
+
+    handle := pool_add(*live_samplers, .{
+        mtl_sampler = mtl_sampler,
+    });
+    if handle == 0 {
+        release(mtl_sampler);
+        log_error("Exceeded maximum number of texture samplers (%)!", live_samplers.max);
+        return 0;
+    }
+
+    bindless_set_sampler_resource(handle, MTLSamplerState.gpuResourceID(mtl_sampler));
+    return handle;
+}
+
+gpu_free :: (sampler_handle: Gpu_Sampler) {
+    removed, sampler := pool_remove(*live_samplers, sampler_handle);
+    if removed {
+        bindless_set_sampler_resource(sampler_handle, .{});
+        if sampler.mtl_sampler != null {
+            release(sampler.mtl_sampler);
+        }
+    }
+}
+
 #scope_module
 
 Texture :: struct {
@@ -144,8 +226,13 @@ Texture_View :: struct {
     desc: Gpu_View_Desc;
 }
 
+Sampler :: struct {
+    mtl_sampler: *MTLSamplerState;
+}
+
 live_textures: Pool(Gpu_Texture, Texture, max = MAX_IMAGES);
 live_texture_views: Pool(Gpu_Texture_View, Texture_View, max = MAX_IMAGES * 2);
+live_samplers: Pool(Gpu_Sampler, Sampler, max = MAX_SAMPLERS);
 
 get_texture :: (handle: Gpu_Texture) -> *Texture {
     return pool_get(live_textures, handle);
@@ -153,6 +240,118 @@ get_texture :: (handle: Gpu_Texture) -> *Texture {
 
 get_texture_view :: (handle: Gpu_Texture_View) -> *Texture_View {
     return pool_get(live_texture_views, handle);
+}
+
+sampler_filter_to_mtl_minmag :: (filter: Gpu_Sampler_Desc.Filter) -> MTLSamplerMinMagFilter {
+    if filter == .NEAREST return .Nearest;
+    return .Linear;
+}
+
+sampler_filter_to_mtl_mip :: (filter: Gpu_Sampler_Desc.Filter) -> MTLSamplerMipFilter {
+    if filter == .NEAREST return .Nearest;
+    return .Linear;
+}
+
+sampler_address_mode_to_mtl :: (mode: Gpu_Sampler_Desc.Address_Mode) -> MTLSamplerAddressMode {
+    if mode == {
+        case .REPEAT;               return .Repeat;
+        case .MIRRORED_REPEAT;      return .MirrorRepeat;
+        case .CLAMP_TO_EDGE;        return .ClampToEdge;
+        case .CLAMP_TO_BORDER;      return .ClampToBorderColor;
+        case .MIRROR_CLAMP_TO_EDGE; return .MirrorClampToEdge;
+    }
+    return .ClampToEdge;
+}
+
+sampler_border_color_to_mtl :: (color: Gpu_Sampler_Desc.Border_Color) -> MTLSamplerBorderColor {
+    if color == {
+        case .FLOAT_TRANSPARENT_BLACK; return .TransparentBlack;
+        case .INT_TRANSPARENT_BLACK;   return .TransparentBlack;
+        case .FLOAT_OPAQUE_BLACK;      return .OpaqueBlack;
+        case .INT_OPAQUE_BLACK;        return .OpaqueBlack;
+        case .FLOAT_OPAQUE_WHITE;      return .OpaqueWhite;
+        case .INT_OPAQUE_WHITE;        return .OpaqueWhite;
+    }
+    return .TransparentBlack;
+}
+
+op_to_mtl_compare :: (op: Op) -> MTLCompareFunction {
+    if op == {
+        case .NEVER;            return .Never;
+        case .LESS;             return .Less;
+        case .EQUAL;            return .Equal;
+        case .LESS_OR_EQUAL;    return .LessEqual;
+        case .GREATER;          return .Greater;
+        case .NOT_EQUAL;        return .NotEqual;
+        case .GREATER_OR_EQUAL; return .GreaterEqual;
+        case .ALWAYS;           return .Always;
+    }
+    return .Always;
+}
+
+format_bytes_per_pixel :: (format: Format) -> NSUInteger {
+    if format == {
+        case .R8_UNORM; #through;
+        case .R8_SNORM; #through;
+        case .R8_UINT; #through;
+        case .R8_SINT;
+            return 1;
+        case .R8G8_UNORM; #through;
+        case .R8G8_SNORM; #through;
+        case .R8G8_UINT; #through;
+        case .R8G8_SINT; #through;
+        case .R16_UNORM; #through;
+        case .R16_SNORM; #through;
+        case .R16_UINT; #through;
+        case .R16_SINT; #through;
+        case .R16_SFLOAT;
+            return 2;
+        case .R8G8B8A8_UNORM; #through;
+        case .R8G8B8A8_SNORM; #through;
+        case .R8G8B8A8_UINT; #through;
+        case .R8G8B8A8_SINT; #through;
+        case .R8G8B8A8_SRGB; #through;
+        case .B8G8R8A8_UNORM; #through;
+        case .B8G8R8A8_SRGB; #through;
+        case .R16G16_UNORM; #through;
+        case .R16G16_SNORM; #through;
+        case .R16G16_UINT; #through;
+        case .R16G16_SINT; #through;
+        case .R16G16_SFLOAT; #through;
+        case .R32_UINT; #through;
+        case .R32_SINT; #through;
+        case .R32_SFLOAT; #through;
+        case .A2R10G10B10_UNORM_PACK32; #through;
+        case .A2R10G10B10_UINT_PACK32;
+            return 4;
+        case .R16G16B16A16_UNORM; #through;
+        case .R16G16B16A16_SNORM; #through;
+        case .R16G16B16A16_UINT; #through;
+        case .R16G16B16A16_SINT; #through;
+        case .R16G16B16A16_SFLOAT; #through;
+        case .R32G32_UINT; #through;
+        case .R32G32_SINT; #through;
+        case .R32G32_SFLOAT;
+            return 8;
+        case .R32G32B32A32_UINT; #through;
+        case .R32G32B32A32_SINT; #through;
+        case .R32G32B32A32_SFLOAT;
+            return 16;
+    }
+    return 0;
+}
+
+texture_type_to_mtl :: (type: Texture_Type) -> MTLTextureType {
+    if type == {
+        case ._1D;        return ._1D;
+        case ._2D;        return ._2D;
+        case ._3D;        return ._3D;
+        case .CUBE;       return .Cube;
+        case ._1D_ARRAY;  return ._1DArray;
+        case ._2D_ARRAY;  return ._2DArray;
+        case .CUBE_ARRAY; return .CubeArray;
+    }
+    return ._2D;
 }
 
 format_to_mtl :: (format: Format) -> MTLPixelFormat {

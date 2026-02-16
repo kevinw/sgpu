@@ -299,6 +299,11 @@ MTLResource_1 :: struct #type_info_none {
         return xx (cast((*MTLResource_1, Selector) -> NSUInteger #c_call)objc_msgSend)(self, sel);
     }
 
+    gpuResourceID :: inline (self: *MTLResource_1) -> MTLResourceID {
+        sel := sel_registerName("gpuResourceID");
+        return xx (cast((*MTLResource_1, Selector) -> MTLResourceID #c_call)objc_msgSend)(self, sel);
+    }
+
     allocatedSize :: inline (self: *MTLResource_1) -> NSUInteger {
         sel := sel_registerName("allocatedSize");
         return xx (cast((*MTLResource_1, Selector) -> NSUInteger #c_call)objc_msgSend)(self, sel);

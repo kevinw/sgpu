@@ -169,6 +169,10 @@ gpu_submit_and_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timelin
     frame_index += 1;
 }
 
+gpu_submission_frame_index :: () -> u64 {
+    return frame_index;
+}
+
 #scope_module
 
 on_commit_feedback :: (block: *Objective_C_Block_Basic, feedback: *MTL4CommitFeedback) #c_call {

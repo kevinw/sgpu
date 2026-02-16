@@ -347,8 +347,10 @@ gpu_draw_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data
     if vertex_data == 0 {
         // Fragment-only direct payload path used by transpiled fullscreen effects where
         // the vertex stage has no resource reads and fragment expects buffer(0) as payload.
-        argument_tables.fragment.setAddress(argument_tables.fragment, cast(MTLGPUAddress) pixel_data, 8, 0);
-        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.fragment, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+        argument_tables.vertex.setAddress(argument_tables.vertex, cast(MTLGPUAddress) pixel_data, 0);
+        argument_tables.fragment.setAddress(argument_tables.fragment, cast(MTLGPUAddress) pixel_data, 0);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages) MTLRenderStage.Vertex);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.fragment, cast(MTLRenderStages) MTLRenderStage.Fragment);
     } else {
         // TODO: we might need more than one indirect buffer per queue per frame, if we're submitting lots of command buffers.
         // each frame/queue pair could draw from a pair of unused indirect buffers, and return them when the frame is over.
@@ -375,7 +377,9 @@ gpu_draw_instanced_direct :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, vertex_cou
     if pipeline == null || pipeline.mtl_render_pipeline == null then return .ERROR_INVALID_PIPELINE;
 
     argument_tables.vertex.setAddress(argument_tables.vertex, cast(MTLGPUAddress) data, 0);
-    current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+    argument_tables.fragment.setAddress(argument_tables.fragment, cast(MTLGPUAddress) data, 0);
+    current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages) MTLRenderStage.Vertex);
+    current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.fragment, cast(MTLRenderStages) MTLRenderStage.Fragment);
 
     current_render_encoder.drawPrimitives(current_render_encoder, .Triangle, 0, vertex_count.(NSUInteger), instance_count.(NSUInteger));
     return .SUCCESS;

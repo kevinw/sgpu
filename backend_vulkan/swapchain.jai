@@ -167,6 +167,11 @@ gpu_frame_index :: () -> u32 {
     return current_swapchain_index;
 }
 
+gpu_submission_frame_index :: () -> u64 {
+    if cpu_frame_timeline == 0 return 0;
+    return cpu_frame_timeline - 1;
+}
+
 #scope_module
 
 recreate_swapchain :: () {

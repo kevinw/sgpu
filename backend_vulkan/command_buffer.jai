@@ -241,6 +241,11 @@ gpu_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u32) {
     vkCmdDispatch(vk_cmd_buff, dimensions[0], dimensions[1], dimensions[2]);
 }
 
+gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data: [] Gpu_Ptr, dimensions: [3] u32) {
+    assert(data.count > 0, "gpu_dispatch_buffers requires at least one buffer.");
+    gpu_dispatch(cmd, data[0], dimensions);
+}
+
 gpu_indirect_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions_gpu: Gpu_Ptr) -> Gpu_Result {
     // not yet tested
     vk_cmd_buff := get_cmd_buff(cmd);
