@@ -385,6 +385,28 @@ gpu_draw_instanced_direct :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, vertex_cou
     return .SUCCESS;
 }
 
+gpu_draw_instanced_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, args: Gpu_Ptr) -> Gpu_Result {
+    using cmd_info := get_cmd_info(cmd);
+    if cmd_info == null || cmd_info.current_render_encoder == null then return .ERROR_INVALID_PIPELINE;
+
+    pipeline := pool_get(live_pipelines, cmd_info.current_pipeline);
+    if pipeline == null || pipeline.mtl_render_pipeline == null then return .ERROR_INVALID_PIPELINE;
+
+    if vertex_data == 0 {
+        argument_tables.vertex.setAddress(argument_tables.vertex, cast(MTLGPUAddress) pixel_data, 0);
+        argument_tables.fragment.setAddress(argument_tables.fragment, cast(MTLGPUAddress) pixel_data, 0);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages) MTLRenderStage.Vertex);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.fragment, cast(MTLRenderStages) MTLRenderStage.Fragment);
+    } else {
+        indirect_buffer := get_indirect_params_buffer(get_queue(cmd_info.queue), vertex_data, pixel_data);
+        argument_tables.vertex.setAddress(argument_tables.vertex, indirect_buffer.gpuAddress(indirect_buffer), 0);
+        current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+    }
+
+    current_render_encoder.drawPrimitives(current_render_encoder, .Triangle, cast(MTLGPUAddress) args);
+    return .SUCCESS;
+}
+
 Indirect_Params :: struct {
     vertex_params: *void;
     fragment_params: *void;
@@ -453,6 +475,48 @@ gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pi
         index_buffer_address,
         index_buffer_length,
         instance_count.(NSUInteger)
+    );
+
+    return .SUCCESS;
+}
+
+gpu_draw_indexed_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, args: Gpu_Ptr, index_size: u32 = size_of(u32)) -> Gpu_Result {
+    cmd_info := get_cmd_info(cmd);
+    if cmd_info == null || cmd_info.current_render_encoder == null {
+        log_error("gpu_draw_indexed_indirect: cmd_info or cmd_info.current_render_encoder is null");
+        return .ERROR_INVALID_BUFFER;
+    }
+
+    using cmd_info;
+
+    pipeline := pool_get(live_pipelines, cmd_info.current_pipeline);
+    if pipeline == null || pipeline.mtl_render_pipeline == null {
+        log_error("gpu_draw_indexed_indirect: pipeline is null or pipeline.mtl_render_pipeline is null");
+        return .ERROR_INVALID_PIPELINE;
+    }
+
+    indirect_buffer := get_indirect_params_buffer(get_queue(cmd_info.queue), vertex_data, pixel_data);
+
+    indirect_gpu := indirect_buffer.gpuAddress(indirect_buffer);
+    argument_tables.vertex.setAddress(argument_tables.vertex, indirect_gpu, 0);
+    current_render_encoder.setArgumentTable(current_render_encoder, argument_tables.vertex, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
+
+    if index_size != 4 && index_size != 2 then return .ERROR_INVALID_VERTEX_INDEX_SIZE;
+    index_type: MTLIndexType = ifx index_size == 4 then .UInt32 else .UInt16;
+
+    range_result, index_range := find_memory_range(index_data);
+    if range_result != .SUCCESS then return range_result;
+
+    index_buffer_address := cast(MTLGPUAddress) index_data;
+    index_buffer_length := (index_range.end - index_data).(NSUInteger);
+
+    MTL4RenderCommandEncoder.drawIndexedPrimitives(
+        cmd_info.current_render_encoder,
+        .Triangle,
+        index_type,
+        index_buffer_address,
+        index_buffer_length,
+        cast(MTLGPUAddress) args
     );
 
     return .SUCCESS;
