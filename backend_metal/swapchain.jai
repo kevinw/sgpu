@@ -89,6 +89,10 @@ gpu_set_swapchain_framebuffer_only :: (framebuffer_only: bool) {
     CAMetalLayer.setFramebufferOnly(swapchain_layer, ifx framebuffer_only then YES else NO);
 }
 
+gpu_current_swapchain_view :: () -> Gpu_Texture_View {
+    return _current_swapchain_view;
+}
+
 gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
     // Wait if the CPU is trying to submit more than MAX_FRAMES_IN_FLIGHT before the GPU can get to them.
     if frame_index >= MAX_FRAMES_IN_FLIGHT {
@@ -276,8 +280,13 @@ create_swapchain_texture_view :: (mtl_texture: *MTLTexture) -> Gpu_Texture_View 
     entry.mtl_texture = mtl_texture;
     array_add(*swapchain_textures, entry);
 
+    _current_swapchain_view = view_handle;
+
     return view_handle;
 }
+
+_current_swapchain_view: Gpu_Texture_View;
+
 
 cleanup_swapchain_views :: () {
     for swapchain_textures {
