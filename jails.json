@@ -1,5 +1,0 @@
-{
-  "build_root": "module.jai",
-  "local_modules": ["modules"],
-  "roots": ["examples/03_hello_square.jai"]
-}

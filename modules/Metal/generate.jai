@@ -19,7 +19,7 @@ RUN_AT_COMPILE_TIME :: false; // It's faster to just compile the bindings genera
         if !build() compiler_set_workspace_status(.FAILED);
     }
 } else {
-    main :: () { build(); }
+    main :: () { if !build() exit(1); }
 }
 
 build :: () -> bool {
