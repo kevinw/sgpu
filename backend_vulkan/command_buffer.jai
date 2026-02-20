@@ -358,6 +358,21 @@ gpu_draw_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data
     vkCmdDraw(vk_cmd_buff, vertex_count, instance_count, 0, 0);
 }
 
+gpu_draw_instanced_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, args: Gpu_Ptr) -> Gpu_Result {
+    vk_cmd_buff := get_cmd_buff(cmd);
+
+    vertex_offset := get_stage_offset(.VERTEX);
+    pixel_offset := get_stage_offset(.PIXEL);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .VERTEX_BIT, vertex_offset, size_of(VkDeviceAddress), *vertex_data);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .FRAGMENT_BIT, pixel_offset, size_of(VkDeviceAddress), *pixel_data);
+
+    result, args_buffer, args_offset := get_buffer_and_offset(args);
+    return_if_error(result);
+
+    vkCmdDrawIndirect(vk_cmd_buff, args_buffer, args_offset.(VkDeviceSize), 1, size_of(Gpu_Draw_Instanced_Args).(u32));
+    return .SUCCESS;
+}
+
 gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, index_count: u32, instance_count: u32, index_size: u32 = size_of(u32)) -> Gpu_Result {
     vk_cmd_buff := get_cmd_buff(cmd);
 
@@ -376,8 +391,24 @@ gpu_draw_indexed_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pi
     return .SUCCESS;
 }
 
-gpu_draw_indexed_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, args: Gpu_Ptr) -> Gpu_Result {
-    // #todo
+gpu_draw_indexed_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, index_data: Gpu_Ptr, args: Gpu_Ptr, index_size: u32 = size_of(u32)) -> Gpu_Result {
+    vk_cmd_buff := get_cmd_buff(cmd);
+
+    vertex_offset := get_stage_offset(.VERTEX);
+    pixel_offset := get_stage_offset(.PIXEL);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .VERTEX_BIT, vertex_offset, size_of(VkDeviceAddress), *vertex_data);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .FRAGMENT_BIT, pixel_offset, size_of(VkDeviceAddress), *pixel_data);
+
+    result, index_buffer, index_offset := get_buffer_and_offset(index_data);
+    return_if_error(result);
+    if index_size != 4 && index_size != 2 then return .ERROR_INVALID_VERTEX_INDEX_SIZE;
+    vkCmdBindIndexBuffer(vk_cmd_buff, index_buffer, index_offset.(VkDeviceSize), ifx index_size == 4 then .UINT32 else .UINT16);
+
+    result, args_buffer, args_offset := get_buffer_and_offset(args);
+    return_if_error(result);
+
+    vkCmdDrawIndexedIndirect(vk_cmd_buff, args_buffer, args_offset.(VkDeviceSize), 1, size_of(Gpu_Draw_Args).(u32));
+    return .SUCCESS;
 }
 
 gpu_draw_meshlets :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u32) -> Gpu_Result {

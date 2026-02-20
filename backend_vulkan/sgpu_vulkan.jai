@@ -455,6 +455,13 @@ Gpu_Draw_Args :: struct {
     first_instance: u32;
 }
 
+Gpu_Draw_Instanced_Args :: struct {
+    vertex_count: u32;
+    instance_count: u32;
+    first_vertex: u32;
+    first_instance: u32;
+}
+
 Gpu_Sampler_Desc :: struct {
     Filter :: enum {
         NEAREST :: 0;
