@@ -1,6 +1,8 @@
 #scope_export
 
-gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
+gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []Gpu_Timeline_Pair = .[]) -> Gpu_Result, Gpu_Texture {
+    assert(optional_signal_texture_ready.count == 0, "TODO: implement optional_signal_texture_ready for metal backend.");
+
     // Set usage flags
     mtl_usage: MTLTextureUsage = 0;
     if (desc.usage & Usage_Flags.SAMPLED) != 0                  mtl_usage |= cast(MTLTextureUsage) MTLTextureUsage_1.ShaderRead;
@@ -22,7 +24,7 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
         setSampleCount(mtl_desc, max(1, desc.sample_count).(NSUInteger));
         setUsage(mtl_desc, mtl_usage);
         // CPU upload path uses replaceRegion, which requires CPU-visible storage.
-        if (desc.usage & Usage_Flags.TRANSFER_DST) != 0 {
+        if desc.usage & Usage_Flags.TRANSFER_DST != 0 {
             setStorageMode(mtl_desc, .Shared);
         } else {
             setStorageMode(mtl_desc, .Private);
@@ -31,8 +33,10 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
 
     mtl_texture := MTLDevice.newTextureWithDescriptor(mtl_device, mtl_desc);
     if mtl_texture == null {
-        return 0;
+        log_error("newTextureWithDescriptor failed");
+        return .FATAL_ERROR_UNKNOWN, 0;
     }
+
     add_to_residency(xx mtl_texture);
 
     handle := pool_add(*live_textures, {
@@ -40,7 +44,11 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc) -> Gpu_Texture {
         mtl_texture = mtl_texture,
     });
 
-    return handle;
+    if handle == 0 {
+        return .ERROR_TEXTURE_LIMIT_EXCEEDED, 0;
+    }
+
+    return .SUCCESS, handle;
 }
 
 gpu_free :: (texture_handle: Gpu_Texture) {
