@@ -12,6 +12,7 @@ SHOW_MEMORY_LEAKS :: true;
 
     gpu_example_harness :: () -> Example_Options #expand {
         Debug.init();
+        Debug.set_report_mode(interactive = false);
 
         // Check for optional command-line arguments for automated testing.
         // -singleframe: run a fixed small frame count.

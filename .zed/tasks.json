@@ -1,7 +1,7 @@
 [
   {
     "label": "01_memory",
-    "command": "jai examples/build.jai - 01_memory -run",
+    "command": "jai ${ZED_WORKTREE_ROOT}/modules/sgpu/examples/build.jai - 01_memory -run",
   },
   {
     "label": "02_compute",
