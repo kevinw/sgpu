@@ -550,6 +550,10 @@ gpu_init :: (optional_features: Gpu_Optional_Features = .DESCRIPTOR_BUFFER) -> G
     return result;
 }
 
+gpu_get_native_device :: () -> *MTLDevice {
+    return mtl_device;
+}
+
 gpu_shutdown :: () {
     shutdown_swapchain();
     shutdown_bindless();

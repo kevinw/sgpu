@@ -133,11 +133,12 @@ gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
 
     // Create or update the texture view for this drawable
     current_swapchain_view = create_swapchain_texture_view(drawable_texture);
+    _current_swapchain_view = current_swapchain_view;
 
     return .SUCCESS, current_swapchain_view;
 }
 
-gpu_submit_and_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {
+gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {
     cmd_info := get_cmd_info(cmd_buff);
     if cmd_info == null then return;
 
@@ -157,6 +158,12 @@ gpu_submit_and_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timelin
         mtl4_queue.waitForDrawable(mtl4_queue, current_drawable);
     }
 
+    for waits {
+        semaphore := get_semaphore(it.semaphore);
+        if semaphore == null || semaphore.mtl_event == null continue;
+        mtl4_queue.waitForEvent(mtl4_queue, semaphore.mtl_event, it.value);
+    }
+
     #if USE_DEBUG_COMMIT {
         block_context = context;
         block.isa = xx _NSConcreteGlobalBlock;
@@ -170,16 +177,49 @@ gpu_submit_and_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timelin
         mtl4_queue.commit(mtl4_queue, commandBuffers=*cmd_info.cmd_buffer, count=1);
     }
 
+    for signals {
+        semaphore := get_semaphore(it.semaphore);
+        if semaphore == null || semaphore.mtl_event == null continue;
+        mtl4_queue.signalEvent(mtl4_queue, semaphore.mtl_event, it.value);
+    }
+
+    assert(cmd_info.current_render_encoder == null);
+    free_command_buffer(queue, cmd_info);
+}
+
+gpu_present_current_swapchain :: (signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {
+    queue := get_queue(gpu_get_queue(.MAIN, 0));
+    if queue == null then return;
+
+    using queue;
+    for waits {
+        semaphore := get_semaphore(it.semaphore);
+        if semaphore == null || semaphore.mtl_event == null continue;
+        // Present is not part of an MTL4 command buffer commit here, so perform a hard host wait
+        // to guarantee the producer queue has reached the requested timeline value.
+        semaphore.mtl_event.waitUntilSignaledValue(semaphore.mtl_event, it.value, U64_MAX);
+    }
+
     if current_drawable {
         mtl4_queue.signalDrawable(mtl4_queue, current_drawable);
         current_drawable.present(current_drawable);
     }
 
+    for signals {
+        semaphore := get_semaphore(it.semaphore);
+        if semaphore == null || semaphore.mtl_event == null continue;
+        mtl4_queue.signalEvent(mtl4_queue, semaphore.mtl_event, it.value);
+    }
+
     // Signal completion for this frame as frame_index + 1 so waits can never target 0.
     mtl4_queue.signalEvent(mtl4_queue, frame_completion_event, frame_index + 1);
-    assert(cmd_info.current_render_encoder == null);
-    free_command_buffer(queue, cmd_info);
+    current_drawable = null;
     frame_index += 1;
+}
+
+gpu_submit_and_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {
+    gpu_submit_swapchain_no_present(cmd_buff, signals=signals, waits=waits);
+    gpu_present_current_swapchain();
 }
 
 gpu_submission_frame_index :: () -> u64 {
@@ -227,6 +267,7 @@ create_swapchain_texture_view :: (mtl_texture: *MTLTexture) -> Gpu_Texture_View 
     // Check if we already have a view for this texture
     for * swapchain_textures {
         if it.mtl_texture == mtl_texture {
+            _current_swapchain_view = it.view_handle;
             return it.view_handle;
         }
     }

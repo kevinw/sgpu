@@ -104,6 +104,15 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}
     return handle;
 }
 
+gpu_get_native_texture :: (view_handle: Gpu_Texture_View) -> *MTLTexture {
+    view := get_texture_view(view_handle);
+    if !view {
+        log_error("invalid view_handle");
+        return null;
+    }
+    return view.mtl_texture;
+}
+
 gpu_free_texture_view :: (view_handle: Gpu_Texture_View) {
     removed, view := pool_remove(*live_texture_views, view_handle);
     if removed {

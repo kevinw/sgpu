@@ -64,6 +64,12 @@ gpu_get_semaphore_value :: (semaphore_handle: Gpu_Semaphore) -> u64 {
     return mtl_event.signaledValue(mtl_event);
 }
 
+gpu_get_native_shared_event :: (semaphore_handle: Gpu_Semaphore) -> *MTLSharedEvent {
+    using semaphore := get_semaphore(semaphore_handle);
+    if semaphore == null return null;
+    return semaphore.mtl_event;
+}
+
 #scope_module
 
 Semaphore :: struct {
