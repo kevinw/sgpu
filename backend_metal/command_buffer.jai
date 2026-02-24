@@ -422,15 +422,6 @@ get_indirect_params_buffer :: (using queue: *Queue, vertex_data: Gpu_Ptr, fragme
     cpu.vertex_params   = xx vertex_data;
     cpu.fragment_params = xx fragment_data;
 
-    if !did_log_indirect_params_once {
-        did_log_indirect_params_once = true;
-        log("SGPU_METAL_INDIRECT_PARAMS vertex_gpu=% fragment_gpu=% stored_vertex_ptr=% stored_fragment_ptr=%",
-            vertex_data,
-            fragment_data,
-            cast(u64) xx cpu.vertex_params,
-            cast(u64) xx cpu.fragment_params);
-    }
-
     return buf;
 }
 
