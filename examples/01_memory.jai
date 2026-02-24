@@ -79,5 +79,5 @@ main :: () {
     log("OK!");
 }
 
-#import,file "../module.jai"(VALIDATION = true, SLANG_COMPILER = false);
+#import,file "../module.jai"()(VALIDATION = true, SLANG_COMPILER = false);
 #load "example_common.jai";
