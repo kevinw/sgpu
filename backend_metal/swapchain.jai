@@ -164,7 +164,7 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
         mtl4_queue.waitForEvent(mtl4_queue, semaphore.mtl_event, it.value);
     }
 
-    #if USE_DEBUG_COMMIT {
+    #if MEASURE_GPU_FRAME_TIME {
         block_context = context;
         block.isa = xx _NSConcreteGlobalBlock;
         block.invoke = cast(*void)on_commit_feedback;
@@ -226,14 +226,28 @@ gpu_submission_frame_index :: () -> u64 {
     return frame_index;
 }
 
+gpu_last_frame_gpu_ms :: () -> float {
+    return last_gpu_frame_ms;
+}
+
 #scope_module
 
 on_commit_feedback :: (block: *Objective_C_Block_Basic, feedback: *MTL4CommitFeedback) #c_call {
     push_context block_context {
         error := feedback.error(feedback);
         if error != null log_error("ERROR: %", nserror_to_string(error));
-        log("start time: %", feedback.GPUStartTime(feedback));
-        log("end time:   %", feedback.GPUEndTime(feedback));
+
+        start_time := feedback.GPUStartTime(feedback);
+        end_time := feedback.GPUEndTime(feedback);
+        if end_time >= start_time {
+            last_gpu_frame_ms = cast(float) ((end_time - start_time) * 1000.0);
+        }
+
+        #if USE_DEBUG_COMMIT {
+            log("start time: %", start_time);
+            log("end time:   %", end_time);
+            log("gpu ms:     %", last_gpu_frame_ms);
+        }
     }
 }
 
@@ -253,6 +267,7 @@ current_swapchain_view: Gpu_Texture_View;
 
 frame_completion_event: *MTLSharedEvent;
 frame_index: u64 = 0;
+last_gpu_frame_ms: float = -1;
 
 // Swapchain texture tracking
 Swapchain_Texture_Entry :: struct {

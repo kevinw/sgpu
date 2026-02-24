@@ -1,12 +1,14 @@
 #module_parameters()(
-    // Optionally enables Vulkan validation layers.
+    // Optionally enables Vulkan/Metal validation layers.
     VALIDATION := false,
     // Optionally enables debug assertions within the sgpu module
     DEBUG_ASSERTS := false,
     // Optionally includes an api for taking render doc captures
     RENDER_CAPTURE := false,
     // Optionally includes a slang shader compiler submodule
-    SLANG_COMPILER := true
+    SLANG_COMPILER := true,
+    // Measure GPU frame time
+    MEASURE_GPU_FRAME_TIME := true
 );
 
 Gpu_Ptr :: #type,distinct u64;

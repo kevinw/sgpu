@@ -172,6 +172,10 @@ gpu_submission_frame_index :: () -> u64 {
     return cpu_frame_timeline - 1;
 }
 
+gpu_last_frame_gpu_ms :: () -> float {
+    return -1;
+}
+
 #scope_module
 
 recreate_swapchain :: () {
