@@ -55,5 +55,5 @@ main :: () {
     print("OK!\n");
 }
 
-#import,file "../module.jai"(VALIDATION = true, SLANG_COMPILER = true);
+#import,file "../module.jai"()(VALIDATION = true, SLANG_COMPILER = true);
 #load "example_common.jai";

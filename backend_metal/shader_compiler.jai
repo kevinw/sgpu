@@ -6,7 +6,7 @@
 // defaultMatrixLayoutMode = .ROW_MAJOR,
 // searchPaths = *search_paths,
 
-compile_shader :: (shader_path: string, entry_points: []string, write_output: bool = false, debug_symbols: bool = false) -> bool, []u8 {
+compile_shader :: (shader_path: string, entry_points: []string = .[], write_output: bool = false, debug_symbols: bool = false) -> bool, []u8 {
     if !global_session create_session();
 
     auto_release_temp();
@@ -64,6 +64,24 @@ compile_shader :: (shader_path: string, entry_points: []string, write_output: bo
             return false, {};
         } else {
             #if VERBOSE log("slang: entry point '%' found.", it);
+        }
+    }
+    
+    // If no entry points explicitly specified, use the first defined entry point
+    if entry_point_ptrs.count == 0 {
+        entry_point_count := IModule_getDefinedEntryPointCount(slang_module);
+        if entry_point_count == 0 {
+            log_error("slang: no entry points found in %", shader_path);
+            return false, {};
+        }
+        if entry_point_count > 1 {
+            log("slang: warning - no entry points specified, using the first found, even though there is more than one");
+        }
+        main := array_add(*entry_point_ptrs);
+        res := IModule_getDefinedEntryPoint(slang_module, 0, main);
+        if !SLANG_SUCCEEDED(res) {
+            log_error("slang: failed to get entry point 0");
+            return false, {};
         }
     }
 
