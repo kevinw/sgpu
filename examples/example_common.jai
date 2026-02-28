@@ -13,6 +13,10 @@ SHOW_MEMORY_LEAKS :: true;
     gpu_example_harness :: () -> Example_Options #expand {
         Debug.init();
         Debug.set_report_mode(interactive = false);
+        
+        // Change to path of executable.
+        path := String.path_strip_filename(System.get_path_of_running_executable());
+        set_working_directory(path);
 
         // Check for optional command-line arguments for automated testing.
         // -singleframe: run a fixed small frame count.
@@ -56,4 +60,7 @@ SHOW_MEMORY_LEAKS :: true;
     TEMP_ALLOCATOR_POISON_FREED_MEMORY=EXTRA_CHECKS,
 );
 
+#scope_file
 #import "Command_Line";
+System :: #import "System";
+String :: #import "String";
