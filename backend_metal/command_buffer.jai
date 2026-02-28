@@ -410,9 +410,10 @@ gpu_draw_instanced_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, p
 Indirect_Params :: struct {
     vertex_params: *void;
     fragment_params: *void;
+    compute_params: *void;
 }
 
-get_indirect_params_buffer :: (using queue: *Queue, vertex_data: Gpu_Ptr, fragment_data: Gpu_Ptr) -> *MTLBuffer {
+get_indirect_params_buffer :: (using queue: *Queue, vertex_data: Gpu_Ptr, fragment_data: Gpu_Ptr, compute_data: Gpu_Ptr = 0) -> *MTLBuffer {
     index := frame_index % MAX_FRAMES_IN_FLIGHT;
 
     buf := indirect_param_buffers[index];
@@ -421,6 +422,7 @@ get_indirect_params_buffer :: (using queue: *Queue, vertex_data: Gpu_Ptr, fragme
     cpu := cast(*Indirect_Params)buf.contents(buf);
     cpu.vertex_params   = xx vertex_data;
     cpu.fragment_params = xx fragment_data;
+    cpu.compute_params  = xx compute_data;
 
     return buf;
 }

@@ -42,7 +42,8 @@ gpu_create_compute_pipeline :: (metal_source: []u8) -> Gpu_Pipeline {
 
     return pool_add(*live_pipelines, {
         type = .COMPUTE,
-        mtl_compute_pipeline = mtl_pipeline
+        mtl_compute_pipeline = mtl_pipeline,
+        compute_binding_mode = detect_compute_binding_mode(metal_source),
     });
 }
 
@@ -197,7 +198,17 @@ gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr, dimensio
 
     // Ensure bindless argument table is initialized
     assert(argument_tables.compute != null);
-    for data_ptrs  MTL4ArgumentTable.setAddress(argument_tables.compute, cast(MTLGPUAddress)it, cast(NSUInteger)it_index);
+    if pipeline.compute_binding_mode == .DIRECT_ADDRESSES {
+        for data_ptrs {
+            MTL4ArgumentTable.setAddress(argument_tables.compute, cast(MTLGPUAddress)it, cast(NSUInteger)it_index);
+        }
+    } else {
+        ptr0 := ifx data_ptrs.count > 0 then data_ptrs[0] else 0;
+        ptr1 := ifx data_ptrs.count > 1 then data_ptrs[1] else 0;
+        ptr2 := ifx data_ptrs.count > 2 then data_ptrs[2] else 0;
+        indirect_buffer := get_indirect_params_buffer(queue, ptr0, ptr1, ptr2);
+        MTL4ArgumentTable.setAddress(argument_tables.compute, indirect_buffer.gpuAddress(indirect_buffer), 0);
+    }
     MTL4ComputeCommandEncoder.setArgumentTable(compute_encoder, argument_tables.compute);
 
     // Get thread execution width and calculate threads per threadgroup
@@ -240,12 +251,26 @@ Pipeline :: struct {
     type: Pipeline_Type;
     mtl_compute_pipeline: *MTLComputePipelineState;
     mtl_render_pipeline: *MTLRenderPipelineState;
+    compute_binding_mode: Compute_Binding_Mode;
+}
+
+Compute_Binding_Mode :: enum {
+    DIRECT_ADDRESSES;
+    ROOT_POINTER_STRUCT;
 }
 
 live_pipelines: Pool(Gpu_Pipeline, Pipeline);
 
 get_pipeline :: (handle: Gpu_Pipeline) -> *Pipeline {
     return pool_get(live_pipelines, handle);
+}
+
+detect_compute_binding_mode :: (metal_source: []u8) -> Compute_Binding_Mode {
+    source := cast(string) metal_source;
+    if contains(source, "[[kernel]]") && contains(source, "constant*") && contains(source, "[[buffer(0)]]") {
+        return .ROOT_POINTER_STRUCT;
+    }
+    return .DIRECT_ADDRESSES;
 }
 
 // Look up a function by a series of names, returning the first one found.
