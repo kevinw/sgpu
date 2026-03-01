@@ -401,13 +401,13 @@ shutdown_swapchain :: () {
 }
 
 update_metal_layer_drawable_size :: (window: *NSWindow) {
-    sz := window.frame(window).size;
-    width := sz.width;
-    height := sz.height;
+    content_view := NSWindow.contentView(window);
+    if !content_view return;
 
-    r := NSRect.{ .{0, 0}, .{ xx width, xx height }};
-    r = window.convertRectToBacking(window, .{.{0, 0}, .{xx width, xx height}});
+    bounds := NSView.bounds(content_view);
+    r := NSView.convertRectToBacking(content_view, bounds);
     layer := ns_window_get_metal_layer(window);
+    if !layer return;
     layer.setDrawableSize(layer, r.size);
 }
 
