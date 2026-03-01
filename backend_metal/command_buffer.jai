@@ -106,8 +106,21 @@ gpu_submit :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[]
     // End the command buffer recording
     MTL4CommandBuffer.endCommandBuffer(cmd_info.cmd_buffer);
 
+    for waits {
+        semaphore := get_semaphore(it.semaphore);
+        if semaphore == null || semaphore.mtl_event == null continue;
+        MTL4CommandQueue.waitForEvent(queue.mtl4_queue, semaphore.mtl_event, it.value);
+    }
+
     // Submit via MTL4 command queue
     MTL4CommandQueue.commit(queue.mtl4_queue, *cmd_info.cmd_buffer, 1);
+
+    for signals {
+        semaphore := get_semaphore(it.semaphore);
+        if semaphore == null || semaphore.mtl_event == null continue;
+        MTL4CommandQueue.signalEvent(queue.mtl4_queue, semaphore.mtl_event, it.value);
+    }
+
     free_command_buffer(queue, cmd_info);
 }
 
@@ -617,6 +630,7 @@ get_cmd_info :: (cmd: Gpu_Command_Buffer) -> *Command_Buffer_Info {
 
 ensure_compute_encoder :: (using cmd_info: *Command_Buffer_Info) -> *MTL4ComputeCommandEncoder {
     assert(cmd_info != null);
+    if current_compute_encoder != null return current_compute_encoder;
     current_compute_encoder = cmd_buffer.computeCommandEncoder(cmd_buffer);
     return current_compute_encoder;
 }

@@ -57,7 +57,7 @@ init_bindless :: () {
     descriptor := objc_scope_new(MTL4ArgumentTableDescriptor);
     {
         using MTL4ArgumentTableDescriptor;
-        setMaxBufferBindCount      (descriptor, 3);
+        setMaxBufferBindCount      (descriptor, 15);
         setMaxTextureBindCount     (descriptor, BINDLESS_TEXTURES_BASE_BINDING_INDEX + BINDLESS_TEXTURE_BIND_CAPACITY);
         setMaxSamplerStateBindCount(descriptor, BINDLESS_SAMPLERS_BASE_BINDING_INDEX + BINDLESS_SAMPLER_BIND_CAPACITY);
         setSupportAttributeStrides (descriptor, NO);
