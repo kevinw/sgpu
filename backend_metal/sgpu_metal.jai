@@ -560,7 +560,9 @@ gpu_shutdown :: () {
     shutdown_queues();
     shutdown_residency();
     release_and_set_null(*mtl_device);
-    release_and_set_null(*global_autorelease_pool);
+    // Keep the process-lifetime autorelease pool alive across live-reload shutdown.
+    // Releasing this pool after DLL reload can crash in _CFAutoreleasePoolPop.
+    global_autorelease_pool = null;
     #if SLANG_COMPILER gpu_internal_slang_shutdown();
 }
 

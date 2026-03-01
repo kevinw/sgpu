@@ -166,6 +166,7 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
 
     #if MEASURE_GPU_FRAME_TIME {
         block_context = context;
+        block.descriptor = *block_desc;
         block.isa = xx _NSConcreteGlobalBlock;
         block.invoke = cast(*void)on_commit_feedback;
 
