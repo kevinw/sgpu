@@ -23,6 +23,9 @@ gpu_create_compute_pipeline :: (metal_source: []u8) -> Gpu_Pipeline {
     // Try both naming conventions plus fallback names.
     mtl_function := get_function_from_library(mtl_library, "ComputeMain", "computeMain", "main", "main_0");
     if mtl_function == null {
+        mtl_function = get_only_function_by_type(mtl_library, .Kernel);
+    }
+    if mtl_function == null {
         log_error("Failed to find compute main function in Metal shader");
         return 0;
     }
@@ -47,6 +50,39 @@ gpu_create_compute_pipeline :: (metal_source: []u8) -> Gpu_Pipeline {
     });
 }
 
+gpu_create_compute_pipeline_from_metallib :: (metallib_path: string, function_name: string, use_root_pointer_struct := false) -> Gpu_Pipeline {
+    auto_release_temp();
+    if metallib_path.count == 0 || function_name.count == 0 {
+        log_error("gpu_create_compute_pipeline_from_metallib: metallib path/function name missing.");
+        return 0;
+    }
+
+    library := new_scoped_library_from_file_or_return_0(metallib_path, "compute metallib");
+    mtl_function := get_function_from_library(library, function_name);
+    if mtl_function == null {
+        log_error("Failed to find compute function '%' in metallib '%'.", function_name, metallib_path);
+        return 0;
+    }
+    defer release(mtl_function);
+
+    error: *NSError;
+    mtl_pipeline := MTLDevice.newComputePipelineStateWithFunction(mtl_device, mtl_function, *error);
+    if log_error_if_not_null(error) {
+        log_error("Failed to create compute pipeline from metallib '%'.", metallib_path);
+        return 0;
+    }
+    if mtl_pipeline == null {
+        log_error("Failed to create compute pipeline state from metallib '%'.", metallib_path);
+        return 0;
+    }
+
+    return pool_add(*live_pipelines, {
+        type = .COMPUTE,
+        mtl_compute_pipeline = mtl_pipeline,
+        compute_binding_mode = ifx use_root_pointer_struct then .ROOT_POINTER_STRUCT else .DIRECT_ADDRESSES,
+    });
+}
+
 gpu_create_graphics_pipeline :: (vertex_metal: []u8, pixel_metal: []u8, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
     auto_release_temp();
 
@@ -62,21 +98,45 @@ gpu_create_graphics_pipeline :: (metal: []u8, raster_desc: Gpu_Raster_Desc) -> G
     return _internal_gpu_create_graphics_pipeline(library, library, raster_desc);
 }
 
+gpu_create_graphics_pipeline_from_metallib :: (metallib_path: string, vertex_function_name: string, fragment_function_name: string, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
+    auto_release_temp();
+    if metallib_path.count == 0 || vertex_function_name.count == 0 || fragment_function_name.count == 0 {
+        log_error("gpu_create_graphics_pipeline_from_metallib: metallib path/function names missing.");
+        return 0;
+    }
+    library := new_scoped_library_from_file_or_return_0(metallib_path, "graphics metallib");
+    return _internal_gpu_create_graphics_pipeline_with_names(library, library, raster_desc, vertex_function_name, fragment_function_name);
+}
+
 _internal_gpu_create_graphics_pipeline :: (vertex_library: *MTLLibrary, pixel_library: *MTLLibrary, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
+    return _internal_gpu_create_graphics_pipeline_with_names(vertex_library, pixel_library, raster_desc, "", "");
+}
+
+_internal_gpu_create_graphics_pipeline_with_names :: (vertex_library: *MTLLibrary, pixel_library: *MTLLibrary, raster_desc: Gpu_Raster_Desc, vertex_name: string, fragment_name: string) -> Gpu_Pipeline {
     // Get vertex function - try various names (Slang may rename "main" to "main_0")
-    vertex_function := get_only_function_by_type(vertex_library, .Vertex);
-    //vertex_function := get_function_from_library(vertex_library, "vertexMain", "vertexMain_0", "main", "main_0");
+    vertex_function: *MTLFunction;
+    if vertex_name.count != 0 {
+        vertex_function = get_function_from_library(vertex_library, vertex_name);
+    } else {
+        vertex_function = get_only_function_by_type(vertex_library, .Vertex);
+    }
     if vertex_function == null {
-        log_error("Failed to automatically find vertex function in shader");
+        if vertex_name.count != 0 log_error("Failed to find vertex function '%' in library.", vertex_name);
+        else log_error("Failed to automatically find vertex function in shader");
         return 0;
     }
     defer release(vertex_function);
 
     // Get fragment function - try various names (Slang may rename "main" to "main_0")
-    fragment_function := get_only_function_by_type(pixel_library, .Fragment);
-    //fragment_function := get_function_from_library(pixel_library, "fragmentMain", "fragmentMain_0", "main", "main_0");
+    fragment_function: *MTLFunction;
+    if fragment_name.count != 0 {
+        fragment_function = get_function_from_library(pixel_library, fragment_name);
+    } else {
+        fragment_function = get_only_function_by_type(pixel_library, .Fragment);
+    }
     if fragment_function == null {
-        log_error("Failed to automatically find fragment function in shader");
+        if fragment_name.count != 0 log_error("Failed to find fragment function '%' in library.", fragment_name);
+        else log_error("Failed to automatically find fragment function in shader");
         return 0;
     }
     defer release(fragment_function);
@@ -260,6 +320,7 @@ Compute_Binding_Mode :: enum {
 }
 
 live_pipelines: Pool(Gpu_Pipeline, Pipeline);
+hot_reload_metallib_copy_counter: u64;
 
 get_pipeline :: (handle: Gpu_Pipeline) -> *Pipeline {
     return pool_get(live_pipelines, handle);
@@ -360,6 +421,34 @@ new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibr
     return library;
 }
 
+new_scoped_library_from_file_or_return_0 :: (path: string, debug_name: string) -> *MTLLibrary #expand {
+    load_path := path;
+    uncached_path := make_uncached_metallib_copy(path);
+    if uncached_path.count != 0 load_path = uncached_path;
+
+    error: *NSError;
+    library := MTLDevice.newLibraryWithFile(mtl_device, to_temp_nsstring(load_path), *error);
+    if log_error_if_not_null(error) {
+        log_error("Failed to load % from file '%'.", debug_name, load_path);
+        `return 0;
+    }
+    if library == null {
+        log_error("Failed to create % from file '%'.", debug_name, load_path);
+        `return 0;
+    }
+    `defer release(library);
+    return library;
+}
+
+make_uncached_metallib_copy :: (path: string) -> string {
+    source_bytes, read_ok := File.read_entire_file(path);
+    if !read_ok return "";
+    hot_reload_metallib_copy_counter += 1;
+    copy_path := tprint("%.__sgpu_hot_%.metallib", path, hot_reload_metallib_copy_counter);
+    if !File.write_entire_file(copy_path, source_bytes) return "";
+    return copy_path;
+}
+
 // TODO: this could accept constants and create the function with them
 get_only_function_by_type :: (library: *MTLLibrary, type: MTLFunctionType) -> *MTLFunction {
     auto_release_temp();
@@ -398,6 +487,7 @@ get_only_function_by_type :: (library: *MTLLibrary, type: MTLFunctionType) -> *M
 NSUTF8StringEncoding :: 4;
 
 #scope_file
+File :: #import "File";
 
 for_expansion :: (array: *$T/NSArray, body: Code, flags: For_Flags) #expand {
     assert(array != null, "for_expansion for NSArray received a null pointer");

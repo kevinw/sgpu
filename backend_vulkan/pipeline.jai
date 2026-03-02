@@ -35,6 +35,23 @@ gpu_create_graphics_pipeline :: (vertex_spirv: [] u8, pixel_spirv: [] u8, raster
     return create_graphics_pipeline(shader_stages, raster_desc);
 }
 
+gpu_create_graphics_pipeline_from_metallib :: (metallib_path: string, vertex_function_name: string, fragment_function_name: string, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
+    _ = metallib_path;
+    _ = vertex_function_name;
+    _ = fragment_function_name;
+    _ = raster_desc;
+    log_error("gpu_create_graphics_pipeline_from_metallib is unsupported on Vulkan backend.");
+    return 0;
+}
+
+gpu_create_compute_pipeline_from_metallib :: (metallib_path: string, function_name: string, use_root_pointer_struct := false) -> Gpu_Pipeline {
+    _ = metallib_path;
+    _ = function_name;
+    _ = use_root_pointer_struct;
+    log_error("gpu_create_compute_pipeline_from_metallib is unsupported on Vulkan backend.");
+    return 0;
+}
+
 gpu_create_meshlets_pipeline :: (meshlets_spirv: [] u8, pixel_spirv: [] u8, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
     shader_stages := VkPipelineShaderStageCreateInfo.[
         create_shader_stage(meshlets_spirv, .MESH_BIT_EXT),
