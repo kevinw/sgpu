@@ -173,16 +173,28 @@ gpu_copy_to_texture :: (dest: Gpu_Texture, src: *void, mip: u32 = 0, layer_slice
         return;
     }
 
+    width  := cast(NSUInteger) texture.desc.dimensions[0];
+    height := cast(NSUInteger) texture.desc.dimensions[1];
+    depth  := cast(NSUInteger) texture.desc.dimensions[2];
+    if depth == 0 depth = 1;
+    if height == 0 height = 1;
+
     region := MTLRegion.{
         origin = .{ x = 0, y = 0, z = 0 },
         size = .{
-            width = cast(NSUInteger) texture.desc.dimensions[0],
-            height = cast(NSUInteger) texture.desc.dimensions[1],
-            depth = 1,
+            width = width,
+            height = height,
+            depth = depth,
         },
     };
-    bytes_per_row := cast(NSUInteger) texture.desc.dimensions[0] * bytes_per_pixel;
-    MTLTexture.replaceRegion(texture.mtl_texture, region, 0, src, bytes_per_row);
+    bytes_per_row := width * bytes_per_pixel;
+
+    if texture.desc.type == ._3D {
+        bytes_per_image := bytes_per_row * height;
+        MTLTexture.replaceRegion(texture.mtl_texture, region, 0, 0, src, bytes_per_row, bytes_per_image);
+    } else {
+        MTLTexture.replaceRegion(texture.mtl_texture, region, 0, src, bytes_per_row);
+    }
 }
 
 gpu_create_sampler :: (desc: Gpu_Sampler_Desc) -> Gpu_Sampler {

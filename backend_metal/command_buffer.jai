@@ -86,7 +86,57 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, src_stage: Stage, dst_stage: Stage) {
     using cmd_info := get_cmd_info(cmd);
     if cmd_info == null then return;
 
-    // TODO!
+    stage_to_mtl_stages :: (stage: Stage) -> MTLStages {
+        if stage == .COMPUTE_SHADER return cast(MTLStages) MTLStage.Dispatch;
+        if stage == .PIXEL_SHADER return cast(MTLStages) MTLStage.Fragment;
+        if stage == .VERTEX_SHADER return cast(MTLStages) MTLStage.Vertex;
+        if stage == .TRANSFER return cast(MTLStages) MTLStage.Blit;
+        if stage == .ALL return cast(MTLStages) MTLStage.All;
+        return cast(MTLStages) MTLStage.All;
+    }
+
+    src_mtl_stage := stage_to_mtl_stages(src_stage);
+    dst_mtl_stage := stage_to_mtl_stages(dst_stage);
+
+    if src_stage == .COMPUTE_SHADER && dst_stage == .COMPUTE_SHADER && current_compute_encoder != null {
+        fence := MTLDevice.newFence(mtl_device);
+        if fence != null {
+            MTL4CommandEncoder.updateFence(
+                cast(*MTL4CommandEncoder) current_compute_encoder,
+                fence,
+                src_mtl_stage
+            );
+            end_current_compute_encoder(cmd_info);
+
+            next_compute_encoder := ensure_compute_encoder(cmd_info);
+            if next_compute_encoder != null {
+                MTL4CommandEncoder.waitForFence(
+                    cast(*MTL4CommandEncoder) next_compute_encoder,
+                    fence,
+                    dst_mtl_stage
+                );
+            }
+            release(fence);
+            return;
+        }
+    }
+
+    if current_compute_encoder != null {
+        MTL4CommandEncoder.barrierAfterQueueStages(
+            cast(*MTL4CommandEncoder) current_compute_encoder,
+            src_mtl_stage,
+            dst_mtl_stage,
+            cast(MTL4VisibilityOptions) MTL4VisibilityOption.Device
+        );
+    }
+    if current_render_encoder != null {
+        MTL4CommandEncoder.barrierAfterQueueStages(
+            cast(*MTL4CommandEncoder) current_render_encoder,
+            src_mtl_stage,
+            dst_mtl_stage,
+            cast(MTL4VisibilityOptions) MTL4VisibilityOption.Device
+        );
+    }
 
     if current_compute_encoder != null  end_current_compute_encoder(cmd_info);
     if current_render_encoder != null   end_current_render_encoder(cmd_info);
