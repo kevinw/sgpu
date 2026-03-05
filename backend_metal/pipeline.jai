@@ -256,20 +256,21 @@ gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr, dimensio
 
     compute_encoder.setComputePipelineState(compute_encoder, pipeline.mtl_compute_pipeline);
 
-    // Ensure bindless argument table is initialized
-    assert(argument_tables.compute != null);
+    table := bindless_lease_argument_table();
+    if table == null return;
+
     if pipeline.compute_binding_mode == .DIRECT_ADDRESSES {
         for data_ptrs {
-            MTL4ArgumentTable.setAddress(argument_tables.compute, cast(MTLGPUAddress)it, cast(NSUInteger)it_index);
+            MTL4ArgumentTable.setAddress(table, cast(MTLGPUAddress)it, cast(NSUInteger)it_index);
         }
     } else {
         ptr0 := ifx data_ptrs.count > 0 then data_ptrs[0] else 0;
         ptr1 := ifx data_ptrs.count > 1 then data_ptrs[1] else 0;
         ptr2 := ifx data_ptrs.count > 2 then data_ptrs[2] else 0;
         indirect_buffer := get_indirect_params_buffer(queue, ptr0, ptr1, ptr2);
-        MTL4ArgumentTable.setAddress(argument_tables.compute, indirect_buffer.gpuAddress(indirect_buffer), 0);
+        MTL4ArgumentTable.setAddress(table, indirect_buffer.gpuAddress(indirect_buffer), 0);
     }
-    MTL4ComputeCommandEncoder.setArgumentTable(compute_encoder, argument_tables.compute);
+    MTL4ComputeCommandEncoder.setArgumentTable(compute_encoder, table);
 
     // Get thread execution width and calculate threads per threadgroup
     max_threads := MTLComputePipelineState.maxTotalThreadsPerThreadgroup(pipeline.mtl_compute_pipeline);
