@@ -566,22 +566,22 @@ gpu_draw_indexed_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pix
     pipeline := pool_get(live_pipelines, cmd_info.current_pipeline);
     if pipeline == null || pipeline.mtl_render_pipeline == null {
         log_error("gpu_draw_indexed_indirect: pipeline is null or pipeline.mtl_render_pipeline is null");
-        return .ERROR_INVALID_PIPELINE;
+        return_error(.ERROR_INVALID_PIPELINE, "gpu_draw_indexed_indirect: invalid graphics pipeline %", cmd_info.current_pipeline);
     }
 
-    indirect_buffer := get_indirect_params_buffer(get_queue(cmd_info.queue), vertex_data, pixel_data);
+    indirect_params := get_indirect_params_snapshot(cmd_info, vertex_data, pixel_data);
+    if indirect_params.buffer == null then return_error(.FATAL_ERROR_UNKNOWN, "gpu_draw_indexed_indirect: failed to lease indirect params snapshot");
 
-    indirect_gpu := indirect_buffer.gpuAddress(indirect_buffer);
-    table := bindless_lease_argument_table();
-    if table == null then return .FATAL_ERROR_UNKNOWN;
-    table.setAddress(table, indirect_gpu, 0);
+    table := bindless_lease_argument_table(cmd_info.queue, cmd_info.scratch_slot, cmd_info.submission_value);
+    if table == null then return_error(.FATAL_ERROR_UNKNOWN, "gpu_draw_indexed_indirect: failed to lease argument table");
+    table.setAddress(table, indirect_params.gpu_address, 0);
     current_render_encoder.setArgumentTable(current_render_encoder, table, cast(MTLRenderStages)(MTLRenderStage.Vertex | .Fragment));
 
-    if index_size != 4 && index_size != 2 then return .ERROR_INVALID_VERTEX_INDEX_SIZE;
+    if index_size != 4 && index_size != 2 then return_error(.ERROR_INVALID_VERTEX_INDEX_SIZE, "gpu_draw_indexed_indirect: unsupported index size %", index_size);
     index_type: MTLIndexType = ifx index_size == 4 then .UInt32 else .UInt16;
 
     range_result, index_range := find_memory_range(index_data);
-    if range_result != .SUCCESS then return range_result;
+    if range_result != .SUCCESS then return_error(range_result, "gpu_draw_indexed_indirect: invalid index buffer GPU pointer %", index_data);
 
     index_buffer_address := cast(MTLGPUAddress) index_data;
     index_buffer_length := (index_range.end - index_data).(NSUInteger);

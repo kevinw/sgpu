@@ -4,7 +4,7 @@ gpu_capture_start :: () -> Gpu_Result {
     queue_handle := gpu_get_queue(.MAIN, 0); // TODO
 
     capture_manager := MTLCaptureManager.sharedCaptureManager();
-    if capture_manager == null return .FATAL_ERROR_UNKNOWN;
+    if capture_manager == null return_error(.FATAL_ERROR_UNKNOWN, "gpu_capture_start: sharedCaptureManager returned null");
 
     set_capture_object_on_descriptor :: (descriptor: *MTLCaptureDescriptor, queue_handle: Gpu_Queue) -> bool {
         if queue_handle != 0 {
@@ -55,7 +55,7 @@ gpu_capture_start :: () -> Gpu_Result {
     }
 
     log_error("No supported MTLCapture destination is available (DeveloperTools/GPUTraceDocument).");
-    return .FATAL_ERROR_UNKNOWN;
+    return_error(.FATAL_ERROR_UNKNOWN, "gpu_capture_start: no supported capture destination available");
 }
 
 gpu_capture_end :: (open := true) {

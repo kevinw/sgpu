@@ -115,7 +115,7 @@ gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
         using queue := get_queue(gpu_get_queue(.MAIN, 0));
         if queue == null {
             log_error("gpu_swapchain_acquire: Failed to get main queue");
-            return .FATAL_ERROR_UNKNOWN, 0;
+            return_error(.FATAL_ERROR_UNKNOWN, 0, "gpu_swapchain_acquire: failed to resolve main queue");
         }
         assert(mtl4_queue != null);
 

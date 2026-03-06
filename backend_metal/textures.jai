@@ -34,7 +34,7 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []
     mtl_texture := MTLDevice.newTextureWithDescriptor(mtl_device, mtl_desc);
     if mtl_texture == null {
         log_error("newTextureWithDescriptor failed");
-        return .FATAL_ERROR_UNKNOWN, 0;
+        return_error(.FATAL_ERROR_UNKNOWN, 0, "gpu_create_texture: newTextureWithDescriptor failed for format=% dimensions=%", desc.format, desc.dimensions);
     }
 
     add_to_residency(xx mtl_texture);
@@ -45,7 +45,7 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []
     });
 
     if handle == 0 {
-        return .ERROR_TEXTURE_LIMIT_EXCEEDED, 0;
+        return_error(.ERROR_TEXTURE_LIMIT_EXCEEDED, 0, "gpu_create_texture: texture pool exhausted");
     }
 
     return .SUCCESS, handle;

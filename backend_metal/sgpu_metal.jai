@@ -627,7 +627,7 @@ create_device :: () -> Gpu_Result {
     push_allocator(temp);
     mtl_device = MTLCreateSystemDefaultDevice();
     if mtl_device == null {
-        return .FATAL_NO_SUITABLE_DEVICE_FOUND;
+        return_error(.FATAL_NO_SUITABLE_DEVICE_FOUND, "MTLCreateSystemDefaultDevice returned null");
     }
     return .SUCCESS;
 }
@@ -641,8 +641,30 @@ remember_allocator :: () {
     // TODO: more...
 }
 
+log_gpu_result_return :: (result: Gpu_Result, message: string = "", loc := #caller_location) {
+    if result == .SUCCESS return;
+    if message.count != 0 {
+        log_error("sgpu_metal returning % at %: %", result, loc, message);
+    } else {
+        log_error("sgpu_metal returning % at %", result, loc);
+    }
+}
+
+return_error :: (result: Gpu_Result, v: $T, message: string = "", args: ..Any, loc := #caller_location) #expand {
+    text := ifx message.count != 0 then tprint(message, args) else "";
+    log_gpu_result_return(result, text, loc);
+    `return result, v;
+}
+
+return_error :: (result: Gpu_Result, message: string = "", args: ..Any, loc := #caller_location) #expand {
+    text := ifx message.count != 0 then tprint(message, args) else "";
+    log_gpu_result_return(result, text, loc);
+    `return result;
+}
+
 return_if_error :: (result: Gpu_Result, v: $T) #expand {
     if result != .SUCCESS {
+        log_gpu_result_return(result);
         #if DEBUG_ASSERTS {
             debug_break();
         }
@@ -652,6 +674,7 @@ return_if_error :: (result: Gpu_Result, v: $T) #expand {
 
 return_if_error :: (result: Gpu_Result) #expand {
     if result != .SUCCESS {
+        log_gpu_result_return(result);
         #if DEBUG_ASSERTS {
             debug_break();
         }
