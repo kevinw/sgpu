@@ -43,6 +43,7 @@ gpu_init_swapchain :: (native_window: u64, window_type: Native_Window_Type) {
         setDevice(swapchain_layer, mtl_device);
         setPixelFormat(swapchain_layer, .BGRA8Unorm);
         setFramebufferOnly(swapchain_layer, YES);
+        setMaximumDrawableCount(swapchain_layer, MAX_FRAMES_IN_FLIGHT.(NSUInteger));
         update_metal_layer_drawable_size(ns_window);
 
         // Get the initial drawable size
@@ -64,6 +65,8 @@ gpu_init_swapchain :: (native_window: u64, window_type: Native_Window_Type) {
         // frame N submission signals value N+1 when finished.
         frame_completion_event.setSignaledValue(frame_completion_event, 0);
     }
+
+    ensure_swapchain_layer_residency();
 }
 
 gpu_swapchain_resize :: () {
@@ -77,6 +80,7 @@ gpu_swapchain_resize :: () {
     surface_width  = cast(u32) drawable_size.width;
     surface_height = cast(u32) drawable_size.height;
     cleanup_swapchain_views();
+    ensure_swapchain_layer_residency();
 }
 
 gpu_destroy_swapchain :: () {
@@ -108,21 +112,7 @@ gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
         return .SUCCESS, 0;  // No drawable available (timeout or error)
     }
 
-    // TODO: gpu_swapchain_aquire doesn't specify the 0th MAIN queue, but we're adding the CAMetalLayer's residencySet
-    // here to it. Might need to add a queue argument to gpu_swaphchain_acquire?
-    // Not sure how it fits into the sgpu API yet.
-    {
-        using queue := get_queue(gpu_get_queue(.MAIN, 0));
-        if queue == null {
-            log_error("gpu_swapchain_acquire: Failed to get main queue");
-            return_error(.FATAL_ERROR_UNKNOWN, 0, "gpu_swapchain_acquire: failed to resolve main queue");
-        }
-        assert(mtl4_queue != null);
-
-        layer_residency_set := swapchain_layer.residencySet(swapchain_layer);
-        assert(layer_residency_set != null);
-        mtl4_queue.addResidencySet(mtl4_queue, layer_residency_set);
-    }
+    ensure_swapchain_layer_residency();
 
     // Get the drawable's texture
     drawable_texture := CAMetalDrawable.texture(current_drawable);
@@ -219,8 +209,8 @@ gpu_present_current_swapchain :: (signals: [] Gpu_Timeline_Pair = .[], waits: []
 }
 
 gpu_submit_and_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {
-    gpu_submit_swapchain_no_present(cmd_buff, signals=signals, waits=waits);
-    gpu_present_current_swapchain();
+    gpu_submit_swapchain_no_present(cmd_buff, waits=waits);
+    gpu_present_current_swapchain(signals=signals);
 }
 
 gpu_submission_frame_index :: () -> u64 {
@@ -265,6 +255,7 @@ surface_height: u32;
 
 current_drawable: *CAMetalDrawable;
 current_swapchain_view: Gpu_Texture_View;
+layer_residency_set: *MTLResidencySet;
 
 frame_completion_event: *MTLSharedEvent;
 frame_index: u64 = 0;
@@ -397,6 +388,7 @@ subtree_description :: (ns_view: *NSView) -> string {
 }
 
 shutdown_swapchain :: () {
+    layer_residency_set = null;
     release_and_set_null(*frame_completion_event);
 }
 
@@ -409,6 +401,25 @@ update_metal_layer_drawable_size :: (window: *NSWindow) {
     layer := ns_window_get_metal_layer(window);
     if !layer return;
     layer.setDrawableSize(layer, r.size);
+}
+
+ensure_swapchain_layer_residency :: () {
+    if swapchain_layer == null return;
+
+    queue := get_queue(gpu_get_queue(.MAIN, 0));
+    if queue == null || queue.mtl4_queue == null return;
+
+    next_residency_set := swapchain_layer.residencySet(swapchain_layer);
+    assert(next_residency_set != null);
+    if next_residency_set == null return;
+
+    if next_residency_set == layer_residency_set return;
+
+    if layer_residency_set != null {
+        queue.mtl4_queue.removeResidencySet(queue.mtl4_queue, layer_residency_set);
+    }
+    queue.mtl4_queue.addResidencySet(queue.mtl4_queue, next_residency_set);
+    layer_residency_set = next_residency_set;
 }
 
 

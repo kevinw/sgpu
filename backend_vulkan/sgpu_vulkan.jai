@@ -298,6 +298,16 @@ Stage :: enum {
     ALL                     :: 0x00010000;
 }
 
+Pass_Access :: enum {
+    NONE;
+    COLOR_ATTACHMENT_WRITE;
+    DEPTH_STENCIL_ATTACHMENT_WRITE;
+    SHADER_READ;
+    SHADER_WRITE;
+    TRANSFER_READ;
+    TRANSFER_WRITE;
+}
+
 Gpu_Queue_Type :: enum u8 {
     MAIN        :: 0;
     COMPUTE     :: 1;

@@ -37,8 +37,7 @@ gpu_malloc :: (size: s64, memory_type: Memory_Type = .DEFAULT, label := "") -> (
     // Get the GPU address
     gpu_ptr := cast(Gpu_Ptr) mtl_buffer.gpuAddress(mtl_buffer);
     if gpu_ptr == 0 {
-        // Failed to get GPU address - this shouldn't happen on modern Metal
-        // Release the buffer (Metal uses reference counting, but we created it)
+        log_error("Failed to get GPU address of MTLBuffer %", mtl_buffer);
         release(mtl_buffer);
         return null, 0;
     }

@@ -11,7 +11,7 @@ gpu_get_queue :: (queue_type: Gpu_Queue_Type, queue_index: u32) -> Gpu_Queue {
 
 gpu_start_command_recording :: (queue_handle: Gpu_Queue) -> Gpu_Result, Gpu_Command_Buffer {
     queue := get_queue(queue_handle);
-    if queue == null return .FATAL_ERROR_UNKNOWN, 0;
+    if queue == null return_error(.FATAL_ERROR_UNKNOWN, 0, "gpu_start_command_recording: invalid queue handle %", queue_handle);
 
     allocator := queue.command_allocators[frame_index % MAX_FRAMES_IN_FLIGHT];
     assert(allocator != null);
@@ -20,7 +20,7 @@ gpu_start_command_recording :: (queue_handle: Gpu_Queue) -> Gpu_Result, Gpu_Comm
     cmd_buffer := get_available_command_buffer(queue);
     if cmd_buffer == null {
         log_error("Failed to create command buffer");
-        return .ERROR_COMMAND_BUFFER_LIMIT_EXCEEDED, 0;
+        return_error(.ERROR_COMMAND_BUFFER_LIMIT_EXCEEDED, 0, "gpu_start_command_recording: get_available_command_buffer returned null");
     }
 
     // Begin the command buffer with the allocator
@@ -50,6 +50,24 @@ gpu_start_command_recording :: (queue_handle: Gpu_Queue) -> Gpu_Result, Gpu_Comm
     cmd_buff_handle := cast(Gpu_Command_Buffer) (slot_index + 1);
 
     return .SUCCESS, cmd_buff_handle;
+}
+
+gpu_get_native_command_buffer :: (cmd: Gpu_Command_Buffer) -> *MTL4CommandBuffer {
+    cmd_info := get_cmd_info(cmd);
+    return ifx cmd_info.cmd_buffer;
+}
+
+gpu_get_native_render_encoder :: (cmd: Gpu_Command_Buffer) -> *MTL4RenderCommandEncoder {
+    cmd_info := get_cmd_info(cmd);
+    return ifx cmd_info.current_render_encoder;
+}
+
+gpu_end_native_encoders :: (cmd: Gpu_Command_Buffer) {
+    cmd_info := get_cmd_info(cmd);
+    if cmd_info == null then return;
+
+    end_current_compute_encoder(cmd_info);
+    end_current_render_encoder(cmd_info);
 }
 
 gpu_memcpy :: (cmd: Gpu_Command_Buffer, dest: Gpu_Ptr, src: Gpu_Ptr, num_bytes: s64) -> Gpu_Result {
@@ -86,15 +104,6 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, src_stage: Stage, dst_stage: Stage) {
     using cmd_info := get_cmd_info(cmd);
     if cmd_info == null then return;
 
-    stage_to_mtl_stages :: (stage: Stage) -> MTLStages {
-        if stage == .COMPUTE_SHADER return cast(MTLStages) MTLStage.Dispatch;
-        if stage == .PIXEL_SHADER return cast(MTLStages) MTLStage.Fragment;
-        if stage == .VERTEX_SHADER return cast(MTLStages) MTLStage.Vertex;
-        if stage == .TRANSFER return cast(MTLStages) MTLStage.Blit;
-        if stage == .ALL return cast(MTLStages) MTLStage.All;
-        return cast(MTLStages) MTLStage.All;
-    }
-
     src_mtl_stage := stage_to_mtl_stages(src_stage);
     dst_mtl_stage := stage_to_mtl_stages(dst_stage);
 
@@ -122,24 +131,61 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, src_stage: Stage, dst_stage: Stage) {
     }
 
     if current_compute_encoder != null {
-        MTL4CommandEncoder.barrierAfterQueueStages(
-            cast(*MTL4CommandEncoder) current_compute_encoder,
+        MTL4CommandEncoder.barrierAfterStages(
+            current_compute_encoder,
             src_mtl_stage,
             dst_mtl_stage,
             cast(MTL4VisibilityOptions) MTL4VisibilityOption.Device
         );
     }
     if current_render_encoder != null {
-        MTL4CommandEncoder.barrierAfterQueueStages(
-            cast(*MTL4CommandEncoder) current_render_encoder,
+        MTL4CommandEncoder.barrierAfterStages(
+            current_render_encoder,
             src_mtl_stage,
             dst_mtl_stage,
             cast(MTL4VisibilityOptions) MTL4VisibilityOption.Device
         );
     }
+    if current_compute_encoder == null && current_render_encoder == null {
+        log_error("gpu_barrier: no active encoder; barrier % -> % has no Metal4 encoder to encode into", src_stage, dst_stage);
+    }
 
     if current_compute_encoder != null  end_current_compute_encoder(cmd_info);
     if current_render_encoder != null   end_current_render_encoder(cmd_info);
+}
+
+gpu_render_pass_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
+    using cmd_info := get_cmd_info(cmd);
+    if cmd_info == null then return;
+
+    access_to_mtl_stages :: (access: Pass_Access) -> MTLStages {
+        if access == .NONE return cast(MTLStages) 0;
+        if access == .COLOR_ATTACHMENT_WRITE return cast(MTLStages) MTLStage.Fragment;
+        if access == .DEPTH_STENCIL_ATTACHMENT_WRITE return cast(MTLStages) MTLStage.Fragment;
+        if access == .SHADER_READ return cast(MTLStages)(MTLStage.Vertex | .Fragment | .Dispatch);
+        if access == .SHADER_WRITE return cast(MTLStages) MTLStage.Dispatch;
+        if access == .TRANSFER_READ return cast(MTLStages) MTLStage.Blit;
+        if access == .TRANSFER_WRITE return cast(MTLStages) MTLStage.Blit;
+        return cast(MTLStages) MTLStage.All;
+    }
+
+    if current_render_encoder == null {
+        log_error("gpu_render_pass_transition: no active render encoder; transition % -> % cannot be encoded on Metal4", before, after);
+        return;
+    }
+
+    before_stages := access_to_mtl_stages(before);
+    after_stages := access_to_mtl_stages(after);
+    if before_stages == 0 || after_stages == 0 return;
+
+    MTL4CommandEncoder.barrierAfterStages(
+        cast(*MTL4CommandEncoder) current_render_encoder,
+        before_stages,
+        after_stages,
+        cast(MTL4VisibilityOptions) MTL4VisibilityOption.Device
+    );
+
+    end_current_render_encoder(cmd_info);
 }
 
 gpu_submit :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {
@@ -319,6 +365,16 @@ gpu_end_render_pass :: (cmd: Gpu_Command_Buffer) {
     if cmd_info == null then return;
 
     end_current_render_encoder(cmd_info);
+}
+
+gpu_end_render_pass_with_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
+    using cmd_info := get_cmd_info(cmd);
+    if cmd_info == null then return;
+
+    if current_render_encoder != null {
+        gpu_render_pass_transition(cmd, before, after);
+        return;
+    }
 }
 
 gpu_set_depth_stencil_state :: (cmd: Gpu_Command_Buffer, desc: Gpu_Depth_Stencil_Desc) {
@@ -806,3 +862,19 @@ Queue :: struct {
 
 live_command_buffers: [..] Command_Buffer_Info;
 queues: [MAX_COMPUTE_QUEUES + MAX_TRANSFER_QUEUES + 1] Queue;
+
+
+stage_to_mtl_stages :: (stage: Stage) -> MTLStages {
+    if stage == {
+        case .COMPUTE_SHADER; return cast(MTLStages) MTLStage.Dispatch;
+        case .PIXEL_SHADER; return cast(MTLStages) MTLStage.Fragment;
+        case .EARLY_FRAGMENT_TESTS; return cast(MTLStages) MTLStage.Fragment;
+        case .LATE_FRAGMENT_TESTS; return cast(MTLStages) MTLStage.Fragment;
+        case .COLOR_ATTACHMENT_OUTPUT; return cast(MTLStages) MTLStage.Fragment;
+        case .VERTEX_SHADER; return cast(MTLStages) MTLStage.Vertex;
+        case .TRANSFER; return cast(MTLStages) MTLStage.Blit;
+        case .ALL; return cast(MTLStages) MTLStage.All;
+        case; log_error("gpu_barrier: unsupported Metal stage mapping for src/dst stage %; falling back to MTLStage.All", stage);
+    }
+    return cast(MTLStages) MTLStage.All;
+}

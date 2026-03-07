@@ -177,6 +177,33 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage) {
     vkCmdPipelineBarrier2(cmd_buff, *dep_info);
 }
 
+gpu_render_pass_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
+    before_stage: Stage = .ALL;
+    after_stage: Stage = .ALL;
+
+    if before == {
+    case .NONE; before_stage = .TOP_OF_PIPE;
+    case .COLOR_ATTACHMENT_WRITE; before_stage = .COLOR_ATTACHMENT_OUTPUT;
+    case .DEPTH_STENCIL_ATTACHMENT_WRITE; before_stage = .LATE_FRAGMENT_TESTS;
+    case .SHADER_READ; before_stage = .PIXEL_SHADER;
+    case .SHADER_WRITE; before_stage = .COMPUTE_SHADER;
+    case .TRANSFER_READ; before_stage = .TRANSFER;
+    case .TRANSFER_WRITE; before_stage = .TRANSFER;
+    }
+
+    if after == {
+    case .NONE; after_stage = .BOTTOM_OF_PIPE;
+    case .COLOR_ATTACHMENT_WRITE; after_stage = .COLOR_ATTACHMENT_OUTPUT;
+    case .DEPTH_STENCIL_ATTACHMENT_WRITE; after_stage = .EARLY_FRAGMENT_TESTS;
+    case .SHADER_READ; after_stage = .PIXEL_SHADER;
+    case .SHADER_WRITE; after_stage = .COMPUTE_SHADER;
+    case .TRANSFER_READ; after_stage = .TRANSFER;
+    case .TRANSFER_WRITE; after_stage = .TRANSFER;
+    }
+
+    gpu_barrier(cmd, before_stage, after_stage);
+}
+
 gpu_set_pipeline :: (cmd: Gpu_Command_Buffer, pipeline_handle: Gpu_Pipeline) -> Gpu_Result {
     vk_cmd_buff := get_cmd_buff(cmd);
     pipeline := pool_get(live_pipelines, pipeline_handle);
@@ -345,6 +372,11 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) -
 gpu_end_render_pass :: (cmd: Gpu_Command_Buffer) {
     vk_cmd_buff := get_cmd_buff(cmd);
     vkCmdEndRendering(vk_cmd_buff);
+}
+
+gpu_end_render_pass_with_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
+    gpu_render_pass_transition(cmd, before, after);
+    gpu_end_render_pass(cmd);
 }
 
 gpu_draw_instanced :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pixel_data: Gpu_Ptr, vertex_count: u32, instance_count: u32) {
