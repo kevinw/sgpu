@@ -447,6 +447,7 @@ make_uncached_metallib_copy :: (path: string) -> string {
     hot_reload_metallib_copy_counter += 1;
     copy_path := tprint("%.__sgpu_hot_%.metallib", path, hot_reload_metallib_copy_counter);
     if !File.write_entire_file(copy_path, source_bytes) return "";
+    free(source_bytes);
     return copy_path;
 }
 
