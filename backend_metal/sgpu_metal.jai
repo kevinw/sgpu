@@ -744,3 +744,53 @@ nserror_to_string :: (nsError: *NSError) -> string {
     error_string_utf8 := NSString.UTF8String(error_string);
     return to_string(error_string_utf8);
 }
+
+nsstring_to_string :: (ns_string: *NSString) -> string {
+    if ns_string == null return "";
+    return to_string(NSString.UTF8String(ns_string));
+}
+
+nserror_domain :: (nsError: *NSError) -> string {
+    if nsError == null return "";
+    sel := sel_registerName2("domain");
+    domain := xx (cast((*NSError, Selector) -> *NSString #c_call) objc_msgSend)(nsError, sel);
+    return nsstring_to_string(domain);
+}
+
+nserror_code :: (nsError: *NSError) -> s64 {
+    if nsError == null return 0;
+    sel := sel_registerName2("code");
+    return xx (cast((*NSError, Selector) -> s64 #c_call) objc_msgSend)(nsError, sel);
+}
+
+nserror_failure_reason :: (nsError: *NSError) -> string {
+    if nsError == null return "";
+    sel := sel_registerName2("localizedFailureReason");
+    reason := xx (cast((*NSError, Selector) -> *NSString #c_call) objc_msgSend)(nsError, sel);
+    return nsstring_to_string(reason);
+}
+
+nserror_recovery_suggestion :: (nsError: *NSError) -> string {
+    if nsError == null return "";
+    sel := sel_registerName2("localizedRecoverySuggestion");
+    suggestion := xx (cast((*NSError, Selector) -> *NSString #c_call) objc_msgSend)(nsError, sel);
+    return nsstring_to_string(suggestion);
+}
+
+nserror_debug_string :: (nsError: *NSError) -> string {
+    if nsError == null return "";
+
+    desc := nserror_to_string(nsError);
+    domain := nserror_domain(nsError);
+    code := nserror_code(nsError);
+    reason := nserror_failure_reason(nsError);
+    suggestion := nserror_recovery_suggestion(nsError);
+
+    if reason.count == 0 && suggestion.count == 0 {
+        return tprint("domain=% code=% desc=%", domain, code, desc);
+    }
+    if suggestion.count == 0 {
+        return tprint("domain=% code=% desc=% reason=%", domain, code, desc, reason);
+    }
+    return tprint("domain=% code=% desc=% reason=% suggestion=%", domain, code, desc, reason, suggestion);
+}

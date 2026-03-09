@@ -41,6 +41,16 @@ gpu_wait_semaphore :: (timeline: Gpu_Timeline_Pair) {
     assert_vk_result(vk_result);
 }
 
+gpu_get_semaphore_value :: (semaphore_handle: Gpu_Semaphore) -> u64 {
+    semaphore := pool_get(live_semaphores, semaphore_handle);
+    if semaphore == null return 0;
+
+    current_value: u64;
+    vk_result := vkGetSemaphoreCounterValue(vk_device, semaphore.vk_semaphore, *current_value);
+    assert_vk_result(vk_result);
+    return current_value;
+}
+
 gpu_destroy_semaphore :: (semaphore_handle: Gpu_Semaphore) {
     removed, semaphore := pool_remove(*live_semaphores, semaphore_handle);
     if removed {

@@ -1,7 +1,3 @@
-USE_DEBUG_COMMIT :: false;
-
-#scope_export
-
 Native_Window_Type :: enum {
     UNKNOWN;
     WIN32;
@@ -143,6 +139,13 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
     // End the command buffer recording
     cmd_info.cmd_buffer.endCommandBuffer(cmd_info.cmd_buffer);
 
+    last_submit_frame_index = frame_index;
+    last_submit_surface_width = surface_width;
+    last_submit_surface_height = surface_height;
+    last_submit_wait_count = waits.count;
+    last_submit_signal_count = signals.count;
+    last_submit_had_drawable = current_drawable != null;
+
     using queue;
     if current_drawable {
         mtl4_queue.waitForDrawable(mtl4_queue, current_drawable);
@@ -154,14 +157,53 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
         mtl4_queue.waitForEvent(mtl4_queue, semaphore.mtl_event, it.value);
     }
 
-    #if MEASURE_GPU_FRAME_TIME {
-        block_context = context;
-        block.descriptor = *block_desc;
-        block.isa = xx _NSConcreteGlobalBlock;
-        block.invoke = cast(*void)on_commit_feedback;
+    #if true {
+
+        on_commit_feedback :: (block: *Commit_Feedback_Block, feedback: *MTL4CommitFeedback) #c_call {
+            if block == null || block.payload == null return;
+
+            payload := block.payload;
+            push_context,defer_pop payload.ctx;
+            defer free(payload);
+            defer free(payload.call_site_stack_trace);
+
+            error := feedback.error(feedback);
+            if error != null {
+                log_error("COMMIT FEEDBACK ERROR: %", nserror_debug_string(error));
+                log_error("  call site stack trace:\n%\n", payload.call_site_stack_trace);
+                log_error("  feedback context: frame=% surface=%x% drawable=% waits=% signals=% last_gpu_ms=%", last_submit_frame_index, last_submit_surface_width, last_submit_surface_height, last_submit_had_drawable, last_submit_wait_count, last_submit_signal_count, last_gpu_frame_ms);
+                if frame_completion_event != null  {
+                    log_error("  events: frame_completion current=% next_target=%", frame_completion_event.signaledValue(frame_completion_event), last_submit_frame_index + 1);
+                }
+            } else {
+                start_time := feedback.GPUStartTime(feedback);
+                end_time   := feedback.GPUEndTime(feedback);
+                if end_time >= start_time {
+                    last_gpu_frame_ms = cast(float) ((end_time - start_time) * 1000.0);
+                }
+            }
+        }
+
+        payload := cast(*Commit_Feedback_Payload) New(Commit_Feedback_Payload);
+        assert(payload != null);
+        payload.ctx = context;
+        payload.ctx.stack_trace = null; // note: This local stack trace will become invalid at the end of this function.
+
+        stack_trace_str := join(..get_stack_trace_strings(), "\n");
+        payload.call_site_stack_trace = stack_trace_str;
+
+        stack_block := Commit_Feedback_Block.{
+            isa = xx _NSConcreteStackBlock,
+            invoke = xx on_commit_feedback,
+            descriptor = *commit_feedback_block_desc,
+            payload = payload,
+        };
+
+        heap_block := cast(*Commit_Feedback_Block) Block_copy(*stack_block);
+        defer Block_release(heap_block);
 
         commit_options := objc_scope_new(MTL4CommitOptions);
-        commit_options.addFeedbackHandler(commit_options, *block);
+        commit_options.addFeedbackHandler(commit_options, heap_block);
 
         mtl4_queue.commit(mtl4_queue, commandBuffers=*cmd_info.cmd_buffer, count=1, options=commit_options);
     } else {
@@ -217,35 +259,42 @@ gpu_submission_frame_index :: () -> u64 {
     return frame_index;
 }
 
+gpu_completed_submission_frame_index :: () -> s64 {
+    if frame_completion_event == null return -1;
+
+    completed_value := frame_completion_event.signaledValue(frame_completion_event);
+    if completed_value == 0 return -1;
+    return cast(s64) completed_value - 1;
+}
+
 gpu_last_frame_gpu_ms :: () -> float {
     return last_gpu_frame_ms;
 }
 
 #scope_module
 
-on_commit_feedback :: (block: *Objective_C_Block_Basic, feedback: *MTL4CommitFeedback) #c_call {
-    push_context block_context {
-        error := feedback.error(feedback);
-        if error != null log_error("ERROR: %", nserror_to_string(error));
-
-        start_time := feedback.GPUStartTime(feedback);
-        end_time := feedback.GPUEndTime(feedback);
-        if end_time >= start_time {
-            last_gpu_frame_ms = cast(float) ((end_time - start_time) * 1000.0);
-        }
-
-        #if USE_DEBUG_COMMIT {
-            log("start time: %", start_time);
-            log("end time:   %", end_time);
-            log("gpu ms:     %", last_gpu_frame_ms);
-        }
-    }
+Commit_Feedback_Block_Descriptor :: struct {
+    reserved: u64;
+    size: u64;
 }
 
-// Boilerplate for getting an Objective-C block callback hooked up
-block_desc: Objective_C_Block_Basic_Descriptor = .{ size = size_of(Objective_C_Block_Basic) };
-block: Objective_C_Block_Basic = .{ descriptor = *block_desc };
-block_context: #Context;
+commit_feedback_block_desc: Commit_Feedback_Block_Descriptor = .{
+    size = size_of(Commit_Feedback_Block),
+};
+
+Commit_Feedback_Payload :: struct {
+    call_site_stack_trace: string;
+    ctx: #Context;
+}
+
+Commit_Feedback_Block :: struct {
+    isa: *void;
+    flags: s32;
+    reserved: s32;
+    invoke: (*Commit_Feedback_Block, *MTL4CommitFeedback) -> () #c_call;
+    descriptor: *Commit_Feedback_Block_Descriptor;
+    payload: *Commit_Feedback_Payload;
+}
 
 native_window_handle: u64;
 native_window_type: Native_Window_Type;
@@ -260,6 +309,12 @@ layer_residency_set: *MTLResidencySet;
 frame_completion_event: *MTLSharedEvent;
 frame_index: u64 = 0;
 last_gpu_frame_ms: float = -1;
+last_submit_frame_index: u64;
+last_submit_surface_width: u32;
+last_submit_surface_height: u32;
+last_submit_wait_count: s64;
+last_submit_signal_count: s64;
+last_submit_had_drawable := false;
 
 // Swapchain texture tracking
 Swapchain_Texture_Entry :: struct {
@@ -269,6 +324,13 @@ Swapchain_Texture_Entry :: struct {
 }
 
 swapchain_textures: [..] Swapchain_Texture_Entry;
+
+swapchain_libSystem :: #library,system "libSystem";
+
+Block_copy :: (block: *void) -> *void #foreign swapchain_libSystem "_Block_copy";
+Block_release :: (block: *void) #foreign swapchain_libSystem "_Block_release";
+c_malloc :: (size: s64) -> *void #foreign swapchain_libSystem "malloc";
+c_free :: (ptr: *void) #foreign swapchain_libSystem "free";
 
 create_swapchain_texture_view :: (mtl_texture: *MTLTexture) -> Gpu_Texture_View {
     // Check if we already have a view for this texture

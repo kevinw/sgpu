@@ -172,6 +172,14 @@ gpu_submission_frame_index :: () -> u64 {
     return cpu_frame_timeline - 1;
 }
 
+gpu_completed_submission_frame_index :: () -> s64 {
+    if gpu_frame_timeline == 0 return -1;
+
+    completed_value := gpu_get_semaphore_value(gpu_frame_timeline);
+    if completed_value == 0 return -1;
+    return cast(s64) completed_value - 1;
+}
+
 gpu_last_frame_gpu_ms :: () -> float {
     return -1;
 }

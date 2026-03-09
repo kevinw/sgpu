@@ -6,9 +6,7 @@
     // Optionally includes an api for taking render doc captures
     RENDER_CAPTURE := false,
     // Optionally includes a slang shader compiler submodule
-    SLANG_COMPILER := true,
-    // Measure GPU frame time
-    MEASURE_GPU_FRAME_TIME := true
+    SLANG_COMPILER := true
 );
 
 Gpu_Ptr :: #type,distinct u64;
