@@ -1,4 +1,12 @@
+Gpu_Buffer :: struct(T: Type) {
+    using #as cpu: *T;
+    gpu: Gpu_Ptr;
+}
 
+gpu_alloc :: ($T: Type, memory_type: Memory_Type = .DEFAULT, label := "") -> Gpu_Buffer(T) {
+    cpu, gpu := gpu_malloc(T, memory_type, label);
+    return { cpu, gpu };
+}
 
 gpu_malloc :: ($type: Type, memory_type: Memory_Type = .DEFAULT, label := "") -> (mapped: *type, gpu: Gpu_Ptr) {
     cpu_ptr, gpu_ptr := gpu_malloc(size_of(type), memory_type, label);

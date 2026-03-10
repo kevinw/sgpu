@@ -113,6 +113,18 @@ _internal_gpu_create_graphics_pipeline :: (vertex_library: *MTLLibrary, pixel_li
 }
 
 _internal_gpu_create_graphics_pipeline_with_names :: (vertex_library: *MTLLibrary, pixel_library: *MTLLibrary, raster_desc: Gpu_Raster_Desc, vertex_name: string, fragment_name: string) -> Gpu_Pipeline {
+    return _internal_gpu_create_graphics_pipeline_with_names_and_constants(vertex_library, pixel_library, raster_desc,
+                                                                           vertex_name, fragment_name,
+                                                                           null, null);
+}
+
+_internal_gpu_create_graphics_pipeline_with_names_and_constants :: (vertex_library: *MTLLibrary,
+                                                                    pixel_library: *MTLLibrary,
+                                                                    raster_desc: Gpu_Raster_Desc,
+                                                                    vertex_name: string,
+                                                                    fragment_name: string,
+                                                                    vertex_constants: *MTLFunctionConstantValues,
+                                                                    fragment_constants: *MTLFunctionConstantValues) -> Gpu_Pipeline {
     // Get vertex function - try various names (Slang may rename "main" to "main_0")
     vertex_function: *MTLFunction;
     if vertex_name.count != 0 {
@@ -121,7 +133,14 @@ _internal_gpu_create_graphics_pipeline_with_names :: (vertex_library: *MTLLibrar
         vertex_function = get_only_function_by_type(vertex_library, .Vertex);
     }
     if vertex_function == null {
-        if vertex_name.count != 0 log_error("Failed to find vertex function '%' in library.", vertex_name);
+        if vertex_name.count != 0 {
+            log_error("Failed to find vertex function '%' in library.", vertex_name);
+            fn_names := vertex_library.functionNames(vertex_library);
+            for idx: 0..fn_names.count(fn_names)-1 {
+                s := to_string(fn_names.objectAtIndex(fn_names, idx));
+                log("  available function: '%'", s);
+            }
+        }
         else log_error("Failed to automatically find vertex function in shader");
         return 0;
     }
@@ -141,18 +160,25 @@ _internal_gpu_create_graphics_pipeline_with_names :: (vertex_library: *MTLLibrar
     }
     defer release(fragment_function);
 
-    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction) -> *MTL4LibraryFunctionDescriptor #expand {
-        using func_desc := objc_new(MTL4LibraryFunctionDescriptor);
-        `defer release(func_desc);
-        setLibrary(func_desc, mtl_library);
-        setName(func_desc, MTLFunction.name(function));
-        return func_desc;
+    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction, constants: *MTLFunctionConstantValues) -> *MTL4FunctionDescriptor #expand {
+        library_desc := objc_new(MTL4LibraryFunctionDescriptor);
+        MTL4LibraryFunctionDescriptor.setLibrary(library_desc, mtl_library);
+        MTL4LibraryFunctionDescriptor.setName(library_desc, MTLFunction.name(function));
+        if constants == null return library_desc;
+
+        defer release(library_desc);
+
+        specialized_desc := objc_new(MTL4SpecializedFunctionDescriptor);
+        MTL4SpecializedFunctionDescriptor.setFunctionDescriptor(specialized_desc, library_desc);
+        MTL4SpecializedFunctionDescriptor.setConstantValues(specialized_desc, constants);
+
+        return specialized_desc;
     }
 
     // Create MTL4 render pipeline descriptor
     pipeline_desc := objc_new_defer_release(MTL4RenderPipelineDescriptor);
-    pipeline_desc.setVertexFunctionDescriptor(pipeline_desc, func_desc(vertex_library, vertex_function));
-    pipeline_desc.setFragmentFunctionDescriptor(pipeline_desc, func_desc(pixel_library, fragment_function));
+    pipeline_desc.setVertexFunctionDescriptor(pipeline_desc, func_desc(vertex_library, vertex_function, vertex_constants));
+    pipeline_desc.setFragmentFunctionDescriptor(pipeline_desc, func_desc(pixel_library, fragment_function, fragment_constants));
 
     // Configure color attachments
     color_attachments := pipeline_desc.colorAttachments(pipeline_desc);
@@ -291,6 +317,24 @@ gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr, dimensio
     MTL4ComputeCommandEncoder.dispatchThreadgroups(compute_encoder, threadgroups, threads_per_group);
 }
 
+new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
+    compile_options := new_scoped_common_mtl_compile_options();
+
+    error: *NSError;
+    library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)source), compile_options, *error);
+    if log_error_if_not_null(error) {
+        log_error("Failed to compile %.", debug_name);
+        `return 0;
+    }
+    if library == null {
+        log_error("Failed to create % library", debug_name);
+        `return 0;
+    }
+    `defer release(library);
+    return library;
+}
+
+
 #scope_module
 
 Pipeline_Type :: enum {
@@ -339,6 +383,18 @@ detect_compute_binding_mode :: (metal_source: []u8) -> Compute_Binding_Mode {
 get_function_from_library :: (library: *MTLLibrary, names: ..string) -> *MTLFunction {
     for name: names {
         fn := MTLLibrary.newFunctionWithName(library, to_temp_nsstring(name));
+        if fn != null return fn;
+    }
+    return null;
+}
+
+get_function_from_library_with_constants :: (library: *MTLLibrary, constants: *MTLFunctionConstantValues, names: ..string) -> *MTLFunction {
+    if constants == null return get_function_from_library(library, ..names);
+
+    for name: names {
+        error: *NSError;
+        fn := MTLLibrary.newFunctionWithName(library, to_temp_nsstring(name), constants, *error);
+        if log_error_if_not_null(error) continue;
         if fn != null return fn;
     }
     return null;
@@ -403,23 +459,6 @@ new_scoped_common_mtl_compile_options :: () -> *MTLCompileOptions #expand {
     setLanguageVersion(opts, ._3_2);
     setEnableLogging(opts, ifx SGPU_ENABLE_SHADER_LOGGING then YES else NO);
     return opts;
-}
-
-new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
-    compile_options := new_scoped_common_mtl_compile_options();
-
-    error: *NSError;
-    library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)source), compile_options, *error);
-    if log_error_if_not_null(error) {
-        log_error("Failed to compile %.", debug_name);
-        `return 0;
-    }
-    if library == null {
-        log_error("Failed to create % library", debug_name);
-        `return 0;
-    }
-    `defer release(library);
-    return library;
 }
 
 new_scoped_library_from_file_or_return_0 :: (path: string, debug_name: string) -> *MTLLibrary #expand {
