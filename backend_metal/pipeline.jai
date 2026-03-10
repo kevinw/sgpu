@@ -167,6 +167,8 @@ _internal_gpu_create_graphics_pipeline_with_names_and_constants :: (vertex_libra
         if constants == null return library_desc;
 
         defer release(library_desc);
+        
+        validate_function_constants(function, constants);
 
         specialized_desc := objc_new(MTL4SpecializedFunctionDescriptor);
         MTL4SpecializedFunctionDescriptor.setFunctionDescriptor(specialized_desc, library_desc);
@@ -247,6 +249,38 @@ _internal_gpu_create_graphics_pipeline_with_names_and_constants :: (vertex_libra
     });
 
     return handle;
+}
+
+NSEnumerator :: struct(T: Type) {
+    using #as super: NSObject;
+    type :: T;
+}
+
+nextObject :: (container: *NSEnumerator($T)) -> T {
+    next_object: (*void, Selector) -> T #c_call;
+    next_object = xx objc_msgSend;
+    return next_object(container, selector("nextObject"));
+}
+
+keyEnumerator :: (dict: *NSDictionary($K, $V)) -> *NSEnumerator(K) {
+    key_enumerator: (*void, Selector) -> *NSEnumerator(K) #c_call;
+    key_enumerator = xx objc_msgSend;
+    return key_enumerator(dict, selector("keyEnumerator"));
+}
+
+validate_function_constants :: (function: *MTLFunction, constants: *MTLFunctionConstantValues) {
+    fn_constants_dict := function.functionConstantsDictionary(function);
+    
+    key_enumerator := keyEnumerator(fn_constants_dict);
+    log("---");
+    while true {
+        next_object := nextObject(key_enumerator);
+        if next_object == null {
+            break;
+        }
+        log("KEY: %", to_string(next_object));
+    }
+    
 }
 
 gpu_free_pipeline :: (pipeline_handle: Gpu_Pipeline) {
