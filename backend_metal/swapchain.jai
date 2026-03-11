@@ -165,12 +165,12 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
             payload := block.payload;
             push_context,defer_pop payload.ctx;
             defer free(payload);
-            defer free(payload.call_site_stack_trace);
+            //defer free(payload.call_site_stack_trace);
 
             error := feedback.error(feedback);
             if error != null {
                 log_error("COMMIT FEEDBACK ERROR: %", nserror_debug_string(error));
-                log_error("  call site stack trace:\n%\n", payload.call_site_stack_trace);
+                //log_error("  call site stack trace:\n%\n", payload.call_site_stack_trace);
                 log_error("  feedback context: frame=% surface=%x% drawable=% waits=% signals=% last_gpu_ms=%", last_submit_frame_index, last_submit_surface_width, last_submit_surface_height, last_submit_had_drawable, last_submit_wait_count, last_submit_signal_count, last_gpu_frame_ms);
                 if frame_completion_event != null  {
                     log_error("  events: frame_completion current=% next_target=%", frame_completion_event.signaledValue(frame_completion_event), last_submit_frame_index + 1);
@@ -189,8 +189,8 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
         payload.ctx = context;
         payload.ctx.stack_trace = null; // note: This local stack trace will become invalid at the end of this function.
 
-        stack_trace_str := join(..get_stack_trace_strings(), "\n");
-        payload.call_site_stack_trace = stack_trace_str;
+        //stack_trace_str := join(..get_stack_trace_strings(), "\n");
+        //payload.call_site_stack_trace = stack_trace_str;
 
         stack_block := Commit_Feedback_Block.{
             isa = xx _NSConcreteStackBlock,
@@ -283,7 +283,7 @@ commit_feedback_block_desc: Commit_Feedback_Block_Descriptor = .{
 };
 
 Commit_Feedback_Payload :: struct {
-    call_site_stack_trace: string;
+    //call_site_stack_trace: string;
     ctx: #Context;
 }
 
