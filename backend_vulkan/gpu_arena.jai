@@ -19,12 +19,22 @@ gpu_arena_alloc :: (using arena: *Gpu_Arena, $type: Type, min_alignment: s64 = 1
     return result_cpu.(*type), result_gpu;
 }
 
+gpu_arena_alloc_buffer :: (using arena: *Gpu_Arena, $type: Type, min_alignment: s64 = 16) -> Gpu_Buffer(type) {
+    result_cpu, result_gpu := gpu_arena_alloc(arena, type, min_alignment);
+    return .{cpu = result_cpu, gpu = result_gpu};
+}
+
 gpu_arena_array_alloc :: (using arena: *Gpu_Arena, $type: Type, count: s64, min_alignment: s64 = 16) -> [] type, Gpu_Ptr {
     result_cpu, result_gpu := gpu_arena_alloc(arena, size_of(type) * count, min_alignment);
     result: [] type;
     result.data = result_cpu;
     result.count = count;
     return result, result_gpu;
+}
+
+gpu_arena_alloc_view :: (using arena: *Gpu_Arena, $type: Type, count: s64, min_alignment: s64 = 16) -> Gpu_View(type) {
+    result_cpu, result_gpu := gpu_arena_array_alloc(arena, type, count, min_alignment);
+    return .{cpu = result_cpu, gpu = result_gpu};
 }
 
 gpu_arena_alloc :: (using arena: *Gpu_Arena, alloc_size: s64, min_alignment: s64 = 16) -> *void, Gpu_Ptr {
