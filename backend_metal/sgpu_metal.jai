@@ -569,7 +569,11 @@ gpu_shutdown :: () {
     shutdown_bindless();
     shutdown_queues();
     shutdown_residency();
-    release_and_set_null(*mtl_device);
+    if mtl_device_owned_by_sgpu {
+        release_and_set_null(*mtl_device);
+    } else {
+        mtl_device = null;
+    }
     // Keep the process-lifetime autorelease pool alive across live-reload shutdown.
     // Releasing this pool after DLL reload can crash in _CFAutoreleasePoolPop.
     global_autorelease_pool = null;
@@ -609,6 +613,7 @@ cpu_allocator: Allocator; // we remember the allocator passed into gpu_init and 
 optional_extensions: [#run enum_highest_value(Optional_Extension) + 1] Optional_Extension_Info;
 requested_optional_features: Gpu_Optional_Features;
 mtl_device: *MTLDevice;
+mtl_device_owned_by_sgpu := false;
 
 MAX_BUFFERS  :: 256;
 MAX_IMAGES   :: 127;
@@ -635,10 +640,15 @@ MAX_ATTACHMENTS :: 16;
 create_device :: () -> Gpu_Result {
     auto_release_temp();
     push_allocator(temp);
+    if mtl_device != null {
+        mtl_device_owned_by_sgpu = false;
+        return .SUCCESS;
+    }
     mtl_device = MTLCreateSystemDefaultDevice();
     if mtl_device == null {
         return_error(.FATAL_NO_SUITABLE_DEVICE_FOUND, "MTLCreateSystemDefaultDevice returned null");
     }
+    mtl_device_owned_by_sgpu = true;
     return .SUCCESS;
 }
 
