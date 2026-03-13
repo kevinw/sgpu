@@ -69,22 +69,35 @@ defer gpu_free(sampler);
 gpu_arena := gpu_make_arena(1024);
 defer gpu_free_arena(gpu_arena);
 
-vertex_buffer, vertex_gpu := gpu_arena_alloc(*gpu_arena, [4] Vector2);
-vertex_buffer.* =  Vector2.[.{0.5, 0.5}, .{0.5, -0.5}, .{-0.5, -0.5}, .{-0.5, +0.5} ];
+vertex_buffer := gpu_alloc_view(*gpu_arena, Vector2, 4);
+vertex_buffer.cpu[0] = .{0.5, 0.5};
+vertex_buffer.cpu[1] = .{0.5, -0.5};
+vertex_buffer.cpu[2] = .{-0.5, -0.5};
+vertex_buffer.cpu[3] = .{-0.5, +0.5};
 
-vertex_uvs, uvs_gpu := gpu_arena_alloc(*gpu_arena, [4] Vector2);
-vertex_uvs.* = Vector2.[ .{1.0, 1.0}, .{1, 0.}, .{0., 0.}, .{0., 1} ];
+vertex_uvs := gpu_alloc_view(*gpu_arena, Vector2, 4);
+vertex_uvs.cpu[0] = .{1.0, 1.0};
+vertex_uvs.cpu[1] = .{1.0, 0.0};
+vertex_uvs.cpu[2] = .{0.0, 0.0};
+vertex_uvs.cpu[3] = .{0.0, 1.0};
 
-index_buffer, index_gpu := gpu_arena_alloc(*gpu_arena, [6] u32);
-index_buffer.* = u32.[ 0, 3, 1, 1, 3, 2 ];
+index_buffer := gpu_alloc_view(*gpu_arena, u32, 6);
+index_buffer.cpu[0] = 0;
+index_buffer.cpu[1] = 3;
+index_buffer.cpu[2] = 1;
+index_buffer.cpu[3] = 1;
+index_buffer.cpu[4] = 3;
+index_buffer.cpu[5] = 2;
 
 // Allocate a small block of memory where the vertex shader parameters will be stored.
-vs_param_block, vertex_params_gpu := gpu_arena_alloc(*gpu_arena, [2] Gpu_Ptr);
-vs_param_block.* = Gpu_Ptr.[ vertex_gpu, uvs_gpu ];
+vs_param_block := gpu_alloc_view(*gpu_arena, Gpu_Ptr, 2);
+vs_param_block.cpu[0] = vertex_buffer.gpu;
+vs_param_block.cpu[1] = vertex_uvs.gpu;
 
 // Allocate a small block of memory where the pixel shader parameters will be stored.
-pixel_data, pixel_gpu := gpu_arena_alloc(*gpu_arena, [2] u32);
-pixel_data.* = u32.[ view.(u32), sampler.(u32) ];
+pixel_data := gpu_alloc_view(*gpu_arena, u32, 2);
+pixel_data.cpu[0] = view.(u32);
+pixel_data.cpu[1] = sampler.(u32);
 
 main_queue := gpu_get_queue(.MAIN, 0);
 
@@ -122,7 +135,7 @@ while !quit {
 
         gpu_set_pipeline(cmd_buff, graphics_pipeline);
 
-        gpu_draw_indexed_instanced(cmd_buff, vertex_params_gpu, pixel_gpu, index_gpu, 6, 1);
+        gpu_draw_indexed_instanced(cmd_buff, vs_param_block.gpu, pixel_data.gpu, index_buffer.gpu, 6, 1);
 
         gpu_end_render_pass(cmd_buff);
     }
@@ -133,3 +146,17 @@ while !quit {
 
 gpu_wait_idle();
 ```
+
+## Recommended Memory Shapes
+
+Use the explicit typed pair helpers when possible:
+
+- `gpu_alloc_buffer(T)` for one struct/value
+- `gpu_alloc_view(T, count)` for a span of elements
+- `gpu_alloc_buffer(arena, ...)` for one arena-backed struct/value
+- `gpu_alloc_view(arena, ...)` for arena-backed arrays and tables
+
+In practice:
+
+- prefer `Gpu_Buffer(T)` for scalar param/control blocks
+- prefer `Gpu_View(T)` for vertices, indices, instance data, simulation state, and pointer tables

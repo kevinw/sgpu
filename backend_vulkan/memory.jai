@@ -8,18 +8,21 @@ Gpu_View :: struct(T: Type) {
     gpu: Gpu_Ptr;
 }
 
-gpu_alloc :: ($T: Type, memory_type: Memory_Type = .DEFAULT, label := "") -> Gpu_Buffer(T) {
+gpu_alloc_buffer :: ($T: Type, memory_type: Memory_Type = .DEFAULT, label := "") -> Gpu_Buffer(T) {
     cpu, gpu := gpu_malloc(T, memory_type);
     return .{cpu, gpu};
 }
 
-gpu_alloc_array :: ($T: Type, count: s64, memory_type: Memory_Type = .DEFAULT, label := "") -> Gpu_View(T) {
+gpu_alloc_view :: ($T: Type, count: s64, memory_type: Memory_Type = .DEFAULT, label := "") -> Gpu_View(T) {
     cpu, gpu := gpu_malloc(size_of(T) * count, memory_type);
     return .{
         cpu = .{data = cast(*T) cpu, count = count},
         gpu = gpu,
     };
 }
+
+gpu_alloc :: gpu_alloc_buffer;
+gpu_alloc_array :: gpu_alloc_view;
 
 gpu_malloc :: ($type: Type, memory_type: Memory_Type = .DEFAULT) -> (mapped: *type, gpu: Gpu_Ptr) {
     cpu_ptr, gpu_ptr := gpu_malloc(size_of(type), memory_type);
