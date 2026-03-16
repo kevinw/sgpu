@@ -428,29 +428,47 @@ gpu_set_depth_stencil_state :: (cmd: Gpu_Command_Buffer, desc: Gpu_Depth_Stencil
     }
 }
 
+return_result_if :: (cond: bool, result: Gpu_Result, message: string, args: ..Any) -> Gpu_Result #expand {
+    if cond {
+        log_error(message, ..args);
+        `return result;
+    }
+}
+
 gpu_set_pipeline :: (cmd: Gpu_Command_Buffer, pipeline_handle: Gpu_Pipeline) -> Gpu_Result {
     using cmd_info := get_cmd_info(cmd);
-    if cmd_info == null then return .ERROR_INVALID_BUFFER;
+    return_result_if(cmd_info == null, .ERROR_INVALID_BUFFER, "gpu_set_pipeline: invalid command buffer handle %", cmd);
 
     pipeline := pool_get(live_pipelines, pipeline_handle);
-    if pipeline == null then return .ERROR_INVALID_PIPELINE;
+    return_result_if(pipeline == null, .ERROR_INVALID_PIPELINE, "gpu_set_pipeline: invalid pipeline handle %", pipeline_handle);
 
     // Store the current pipeline in the command buffer info for later use during dispatch/draw
     current_pipeline = pipeline_handle;
 
     // Set the pipeline on the appropriate encoder
-    if pipeline.type == .GRAPHICS && cmd_info.current_render_encoder != null {
-        if pipeline.mtl_render_pipeline != null {
-            MTL4RenderCommandEncoder.setRenderPipelineState(current_render_encoder, pipeline.mtl_render_pipeline);
-        } else {
-            log_error("pipeline.mtl_render_pipeline is null");
+    if #complete pipeline.type == {
+
+    case .GRAPHICS;
+        return_result_if(current_render_encoder == null, .ERROR_INVALID_BUFFER, "gpu_set_pipeline: no current render encoder for graphics pipeline %", pipeline_handle);
+        return_result_if(pipeline.mtl_render_pipeline == null, .ERROR_INVALID_PIPELINE, "gpu_set_pipeline: invalid render pipeline for graphics pipeline %", pipeline_handle);
+
+        current_render_encoder.setRenderPipelineState(current_render_encoder, pipeline.mtl_render_pipeline);
+
+        mtl_cull_mode: MTLCullMode = .None;
+        if #complete pipeline.raster_desc.cull == {
+        case .NONE; mtl_cull_mode = .None;
+        case .CCW;  mtl_cull_mode = .Front;
+        case .CW;   mtl_cull_mode = .Back;
+        case. ALL; assert(false, "TODO: implement Cull.ALL");
         }
-    } else if pipeline.type == .COMPUTE && cmd_info.current_compute_encoder != null {
-        if pipeline.mtl_compute_pipeline != null {
-            MTL4ComputeCommandEncoder.setComputePipelineState(current_compute_encoder, pipeline.mtl_compute_pipeline);
-        } else {
-            log_error("pipeline.mtl_compute_pipeline is null");
-        }
+        current_render_encoder.setCullMode(current_render_encoder, mtl_cull_mode);
+
+    case .COMPUTE;
+        return_result_if(current_compute_encoder == null, .ERROR_INVALID_BUFFER, "gpu_set_pipeline: no current compute encoder for compute pipeline %", pipeline_handle);
+        return_result_if(pipeline.mtl_compute_pipeline == null, .ERROR_INVALID_PIPELINE, "gpu_set_pipeline: invalid compute pipeline for compute pipeline %", pipeline_handle);
+
+        current_compute_encoder.setComputePipelineState(current_compute_encoder, pipeline.mtl_compute_pipeline);
+
     }
 
     return .SUCCESS;

@@ -167,7 +167,7 @@ _internal_gpu_create_graphics_pipeline_with_names_and_constants :: (vertex_libra
         if constants == null return library_desc;
 
         defer release(library_desc);
-        
+
         validate_function_constants(function, constants);
 
         specialized_desc := objc_new(MTL4SpecializedFunctionDescriptor);
@@ -246,6 +246,7 @@ _internal_gpu_create_graphics_pipeline_with_names_and_constants :: (vertex_libra
         type = .GRAPHICS,
         mtl_compute_pipeline = null,
         mtl_render_pipeline = render_pipeline,
+        raster_desc = raster_desc,
     });
 
     return handle;
@@ -270,7 +271,7 @@ keyEnumerator :: (dict: *NSDictionary($K, $V)) -> *NSEnumerator(K) {
 
 validate_function_constants :: (function: *MTLFunction, constants: *MTLFunctionConstantValues) {
     fn_constants_dict := function.functionConstantsDictionary(function);
-    
+
     key_enumerator := keyEnumerator(fn_constants_dict);
     log("---");
     while true {
@@ -280,7 +281,7 @@ validate_function_constants :: (function: *MTLFunction, constants: *MTLFunctionC
         }
         log("KEY: %", to_string(next_object));
     }
-    
+
 }
 
 gpu_free_pipeline :: (pipeline_handle: Gpu_Pipeline) {
@@ -391,6 +392,7 @@ Pipeline :: struct {
     mtl_compute_pipeline: *MTLComputePipelineState;
     mtl_render_pipeline: *MTLRenderPipelineState;
     compute_binding_mode: Compute_Binding_Mode;
+    raster_desc: Gpu_Raster_Desc;
 }
 
 Compute_Binding_Mode :: enum {
