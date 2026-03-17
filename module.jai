@@ -11,6 +11,23 @@
 
 Gpu_Ptr :: #type,distinct u64;
 
+CPU_Struct :: struct (T: Type)  {
+    #insert #run -> string {
+        sb: String_Builder;
+        for type_info(T).members {
+            print_to_builder(*sb, "    %: ", it.name);
+            if it.type.type == {
+            case .POINTER;
+                append(*sb, "Gpu_Ptr;\n");
+            case;
+                print_type_to_builder(*sb, it.type);
+                append(*sb, ";\n");
+            }
+        }
+        return builder_to_string(*sb);
+    };
+}
+
 Memory_Type :: enum {
     DEFAULT;
     GPU;
