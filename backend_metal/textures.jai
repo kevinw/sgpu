@@ -45,17 +45,37 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []
     });
 
     if handle == 0 {
+        remove_from_residency(xx mtl_texture);
+        release(mtl_texture);
         return_error(.ERROR_TEXTURE_LIMIT_EXCEEDED, 0, "gpu_create_texture: texture pool exhausted");
     }
+
+    default_view := create_texture_view_handle(handle, default_texture_view_desc(desc));
+    if default_view == 0 {
+        removed, texture := pool_remove(*live_textures, handle);
+        if removed && texture.mtl_texture != null {
+            remove_from_residency(xx texture.mtl_texture);
+            release(texture.mtl_texture);
+        }
+        return_error(.ERROR_TEXTURE_LIMIT_EXCEEDED, 0, "gpu_create_texture: default view creation failed");
+    }
+
+    texture := pool_get(live_textures, handle);
+    texture.default_view = default_view;
 
     return .SUCCESS, handle;
 }
 
 gpu_free :: (texture_handle: Gpu_Texture) {
     removed, texture := pool_remove(*live_textures, texture_handle);
-    if removed && texture.mtl_texture != null {
-        remove_from_residency(xx texture.mtl_texture);
-        release(texture.mtl_texture);
+    if removed {
+        if texture.default_view != 0 {
+            release_texture_view_handle(texture.default_view);
+        }
+        if texture.mtl_texture != null {
+            remove_from_residency(xx texture.mtl_texture);
+            release(texture.mtl_texture);
+        }
     }
 }
 
@@ -63,10 +83,39 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}
     texture := pool_get(live_textures, texture_handle);
     if texture == null then return 0;
 
-    // Use texture's format if view doesn't specify one
-    format := ifx view_desc.format != .UNDEFINED then view_desc.format else texture.desc.format;
-    mip_count := ifx view_desc.mip_count > 0 then view_desc.mip_count else texture.desc.mip_count;
-    layer_count := ifx view_desc.layer_count > 0 then view_desc.layer_count else texture.desc.layer_count;
+    final_desc := normalize_texture_view_desc(texture.desc, view_desc);
+    if is_default_texture_view_desc(texture.desc, final_desc) {
+        return texture.default_view;
+    }
+
+    return create_texture_view_handle(texture_handle, final_desc);
+}
+
+gpu_default_texture_view :: (texture_handle: Gpu_Texture) -> Gpu_Texture_View {
+    texture := pool_get(live_textures, texture_handle);
+    if texture == null return 0;
+    return texture.default_view;
+}
+
+gpu_texture_view_index :: (view_handle: Gpu_Texture_View) -> u32 {
+    // This is the shader-visible index. On Metal the backend still remaps that to [[texture(1 + index)]]
+    // because the argument table keeps buffer params at [[buffer(0)]] and textures starting at [[texture(1)]].
+    return cast(u32) view_handle;
+}
+
+gpu_texture_sampled_index :: (texture_handle: Gpu_Texture) -> u32 {
+    return cast(u32) gpu_default_texture_view(texture_handle);
+}
+
+gpu_black_texture_view :: () -> Gpu_Texture_View {
+    return fallback_black_view_handle;
+}
+
+create_texture_view_handle :: (texture_handle: Gpu_Texture, final_desc: Gpu_View_Desc) -> Gpu_Texture_View {
+    texture := pool_get(live_textures, texture_handle);
+    if texture == null return 0;
+
+    format := final_desc.format;
 
     // For simple case, just use the texture directly
     // Metal allows creating texture views for format reinterpretation
@@ -84,14 +133,6 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}
         }
     }
 
-    final_desc := Gpu_View_Desc.{
-        format = format,
-        base_mip = view_desc.base_mip,
-        mip_count = mip_count,
-        base_layer = view_desc.base_layer,
-        layer_count = layer_count,
-    };
-
     handle := pool_add(*live_texture_views, .{
         texture = texture_handle,
         mtl_texture = mtl_texture_view,
@@ -100,6 +141,8 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}
 
     if handle != 0 {
         bindless_set_texture_resource(handle, mtl_texture_view);
+    } else if mtl_texture_view != texture.mtl_texture {
+        release(mtl_texture_view);
     }
 
     return handle;
@@ -115,16 +158,12 @@ gpu_get_native_texture :: (view_handle: Gpu_Texture_View) -> *MTLTexture {
 }
 
 gpu_free_texture_view :: (view_handle: Gpu_Texture_View) {
-    removed, view := pool_remove(*live_texture_views, view_handle);
-    if removed {
-        bindless_set_texture_resource(view_handle, null);
-
-        // Only release if this is a view we created (not the original texture)
-        texture := pool_get(live_textures, view.texture);
-        if texture != null && view.mtl_texture != texture.mtl_texture {
-            release(view.mtl_texture);
-        }
-    }
+    if view_handle == 0 return;
+    view := get_texture_view(view_handle);
+    if !view return;
+    texture := pool_get(live_textures, view.texture);
+    if texture != null && texture.default_view == view_handle return;
+    release_texture_view_handle(view_handle);
 }
 
 gpu_texture_view_size :: (view_handle: Gpu_Texture_View) -> (width: u32, height: u32, ok: bool) {
@@ -249,6 +288,7 @@ gpu_free :: (sampler_handle: Gpu_Sampler) {
 Texture :: struct {
     desc: Gpu_Texture_Desc;
     mtl_texture: *MTLTexture;
+    default_view: Gpu_Texture_View;
 }
 
 Texture_View :: struct {
@@ -264,13 +304,95 @@ Sampler :: struct {
 live_textures: Pool(Gpu_Texture, Texture, max = MAX_IMAGES);
 live_texture_views: Pool(Gpu_Texture_View, Texture_View, max = MAX_IMAGES * 2);
 live_samplers: Pool(Gpu_Sampler, Sampler, max = MAX_SAMPLERS);
+fallback_black_texture: Gpu_Texture;
+fallback_black_view_handle: Gpu_Texture_View;
+fallback_black_view: Texture_View;
 
 get_texture :: (handle: Gpu_Texture) -> *Texture {
     return pool_get(live_textures, handle);
 }
 
 get_texture_view :: (handle: Gpu_Texture_View) -> *Texture_View {
+    if handle == fallback_black_view_handle {
+        if fallback_black_view.mtl_texture == null return null;
+        return *fallback_black_view;
+    }
     return pool_get(live_texture_views, handle);
+}
+
+default_texture_view_desc :: (desc: Gpu_Texture_Desc) -> Gpu_View_Desc {
+    return .{
+        format = desc.format,
+        base_mip = 0,
+        mip_count = desc.mip_count,
+        base_layer = 0,
+        layer_count = desc.layer_count,
+    };
+}
+
+normalize_texture_view_desc :: (texture_desc: Gpu_Texture_Desc, view_desc: Gpu_View_Desc) -> Gpu_View_Desc {
+    return .{
+        format = ifx view_desc.format != .UNDEFINED then view_desc.format else texture_desc.format,
+        base_mip = view_desc.base_mip,
+        mip_count = ifx view_desc.mip_count != 0xFF then max(view_desc.mip_count, 1) else texture_desc.mip_count,
+        base_layer = view_desc.base_layer,
+        layer_count = ifx view_desc.layer_count != 0xFFFF then max(view_desc.layer_count, 1) else texture_desc.layer_count,
+    };
+}
+
+is_default_texture_view_desc :: (texture_desc: Gpu_Texture_Desc, view_desc: Gpu_View_Desc) -> bool {
+    return view_desc.format == texture_desc.format
+        && view_desc.base_mip == 0
+        && view_desc.mip_count == texture_desc.mip_count
+        && view_desc.base_layer == 0
+        && view_desc.layer_count == texture_desc.layer_count;
+}
+
+release_texture_view_handle :: (view_handle: Gpu_Texture_View) {
+    removed, view := pool_remove(*live_texture_views, view_handle);
+    if !removed return;
+
+    bindless_set_texture_resource(view_handle, null);
+
+    texture := pool_get(live_textures, view.texture);
+    if texture != null && view.mtl_texture != texture.mtl_texture {
+        release(view.mtl_texture);
+    }
+}
+
+init_texture_defaults :: () {
+    // Reserve shader texture index 0 as a valid black fallback so zero-initialized material state is safe.
+    result, texture := gpu_create_texture(.{
+        type = ._2D,
+        dimensions = .[1, 1, 1],
+        format = .R8G8B8A8_UNORM,
+        usage = .SAMPLED | .TRANSFER_DST,
+    });
+    assert(result == .SUCCESS, "Failed creating sgpu fallback black texture.");
+
+    fallback_black_texture = texture;
+    fallback_black_view_handle = 0;
+
+    texture_info := get_texture(texture);
+    assert(texture_info != null);
+    fallback_black_view = .{
+        texture = texture,
+        mtl_texture = texture_info.mtl_texture,
+        desc = default_texture_view_desc(texture_info.desc),
+    };
+
+    black_pixel := u32.[0x00000000];
+    gpu_copy_to_texture(texture, black_pixel.data);
+    bindless_set_texture_resource(fallback_black_view_handle, texture_info.mtl_texture);
+}
+
+shutdown_texture_defaults :: () {
+    if fallback_black_texture != 0 {
+        bindless_set_texture_resource(fallback_black_view_handle, null);
+        gpu_free(fallback_black_texture);
+        fallback_black_texture = 0;
+        fallback_black_view = .{};
+    }
 }
 
 sampler_filter_to_mtl_minmag :: (filter: Gpu_Sampler_Desc.Filter) -> MTLSamplerMinMagFilter {

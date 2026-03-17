@@ -259,7 +259,9 @@ recreate_swapchain :: () {
             },
         });
 
-        view_handle := gpu_texture_view(swapchain_textures[it_index]);
+        texture := pool_get(live_textures, swapchain_textures[it_index]);
+        texture.default_view = create_texture_view_handle(swapchain_textures[it_index], default_texture_view_desc(texture.desc));
+        view_handle := texture.default_view;
 
         swapchain_views[it_index] = view_handle;
     }

@@ -560,6 +560,7 @@ gpu_init :: (optional_features: Gpu_Optional_Features = .DESCRIPTOR_BUFFER) -> G
     return_if_error(result);
     result = initialize_descriptors();
     return_if_error(result);
+    init_texture_defaults();
 
     result = create_global_pipeline_layout();
     return_if_error(result);
@@ -569,6 +570,7 @@ gpu_init :: (optional_features: Gpu_Optional_Features = .DESCRIPTOR_BUFFER) -> G
 
 gpu_shutdown :: () {
     vkDeviceWaitIdle(vk_device);
+    shutdown_texture_defaults();
 
     gpu_collect_garbage();
 

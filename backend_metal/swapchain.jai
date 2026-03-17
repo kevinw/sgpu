@@ -383,6 +383,13 @@ create_swapchain_texture_view :: (mtl_texture: *MTLTexture) -> Gpu_Texture_View 
         return 0;
     }
 
+    texture := pool_get(live_textures, texture_handle);
+    if texture != null {
+        texture.default_view = view_handle;
+    }
+
+    bindless_set_texture_resource(view_handle, mtl_texture);
+
     // Track this swapchain texture
     entry: Swapchain_Texture_Entry;
     entry.texture_handle = texture_handle;
@@ -400,7 +407,7 @@ _current_swapchain_view: Gpu_Texture_View;
 
 cleanup_swapchain_views :: () {
     for swapchain_textures {
-        pool_remove(*live_texture_views, it.view_handle);
+        release_texture_view_handle(it.view_handle);
         pool_remove(*live_textures, it.texture_handle);
     }
     array_reset(*swapchain_textures);

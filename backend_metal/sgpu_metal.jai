@@ -556,6 +556,7 @@ gpu_init :: (optional_features: Gpu_Optional_Features = .DESCRIPTOR_BUFFER) -> G
     init_residency();
     init_queues();
     init_bindless();
+    init_texture_defaults();
 
     return result;
 }
@@ -566,6 +567,7 @@ gpu_get_native_device :: () -> *MTLDevice {
 
 gpu_shutdown :: () {
     shutdown_swapchain();
+    shutdown_texture_defaults();
     shutdown_bindless();
     shutdown_queues();
     shutdown_residency();
@@ -616,7 +618,9 @@ mtl_device: *MTLDevice;
 mtl_device_owned_by_sgpu := false;
 
 MAX_BUFFERS  :: 256;
-MAX_IMAGES   :: 127;
+// Metal supports at most 128 texture bindings in the argument table. We reserve one shader-visible
+// texture slot for the black fallback, so user-created texture views top out at 126.
+MAX_IMAGES   :: 126;
 MAX_SAMPLERS :: 10;
 
 MAX_COMPUTE_QUEUES  :: 4;

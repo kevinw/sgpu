@@ -1,20 +1,24 @@
 #scope_export
 
 BINDLESS_PARAMS_BINDING_INDEX :: 0;
+// Metal bindless textures are exposed to shaders starting at [[texture(1)]], not [[texture(0)]].
+// `Gpu_Texture_View` values remain zero-based shader indices: 0 is the black fallback texture.
 BINDLESS_TEXTURES_BASE_BINDING_INDEX :: 1;
 BINDLESS_SAMPLERS_BASE_BINDING_INDEX :: 0;
 
 METAL_MAX_TEXTURE_BINDS :: 128;
-// Metal validates maxTextureBindCount <= 128. With base texture binding at 1, this leaves 127 bindless texture slots.
-BINDLESS_TEXTURE_BIND_CAPACITY :: 127;
+// Reserve one zero-defaulting texture slot while staying within Metal's 128 texture binding limit.
+BINDLESS_TEXTURE_BIND_CAPACITY :: MAX_IMAGES + 1;
 BINDLESS_SAMPLER_BIND_CAPACITY :: MAX_SAMPLERS;
 BINDLESS_TEXTURE_BIND_COUNT :: BINDLESS_TEXTURES_BASE_BINDING_INDEX + BINDLESS_TEXTURE_BIND_CAPACITY;
 BINDLESS_SAMPLER_BIND_COUNT :: BINDLESS_SAMPLERS_BASE_BINDING_INDEX + BINDLESS_SAMPLER_BIND_CAPACITY;
 
-bindless_set_texture_resource :: (view_handle: Gpu_Texture_View, texture: *MTLTexture) {
-    if view_handle == 0 return;
+texture_view_handle_to_bindless_binding :: (view_handle: Gpu_Texture_View) -> NSUInteger {
+    return BINDLESS_TEXTURES_BASE_BINDING_INDEX + cast(NSUInteger) view_handle;
+}
 
-    bind_index := BINDLESS_TEXTURES_BASE_BINDING_INDEX + cast(NSUInteger) (cast(u32) view_handle - 1);
+bindless_set_texture_resource :: (view_handle: Gpu_Texture_View, texture: *MTLTexture) {
+    bind_index := texture_view_handle_to_bindless_binding(view_handle);
     if bind_index >= BINDLESS_TEXTURE_BIND_COUNT {
         log_error("Bindless texture handle % exceeds texture bindless capacity %.", view_handle, BINDLESS_TEXTURE_BIND_CAPACITY - 1);
         return;
@@ -77,8 +81,8 @@ init_bindless :: () {
     assert(argument_table_descriptor == null);
 
     auto_release_temp();
-    if MAX_IMAGES > BINDLESS_TEXTURE_BIND_CAPACITY {
-        log("Metal bindless textures clamped to % (requested MAX_IMAGES=%).", BINDLESS_TEXTURE_BIND_CAPACITY, MAX_IMAGES);
+    if BINDLESS_TEXTURE_BIND_COUNT > METAL_MAX_TEXTURE_BINDS {
+        log("Metal bindless textures clamped to % total entries (requested total=%).", METAL_MAX_TEXTURE_BINDS, BINDLESS_TEXTURE_BIND_COUNT);
     }
 
     // Keep descriptor alive for runtime table leasing.

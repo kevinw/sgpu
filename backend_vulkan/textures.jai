@@ -28,8 +28,21 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []
 
     handle := pool_add(*live_textures, .{desc = desc, vk_image = image, allocation = alloc});
     if handle == 0 {
+        vmaDestroyImage(vma, image, alloc);
         return .ERROR_TEXTURE_LIMIT_EXCEEDED, 0;
     }
+
+    default_view := create_texture_view_handle(handle, default_texture_view_desc(desc));
+    if default_view == 0 {
+        removed, texture := pool_remove(*live_textures, handle);
+        if removed && texture.allocation {
+            vmaDestroyImage(vma, texture.vk_image, texture.allocation);
+        }
+        return .ERROR_TEXTURE_LIMIT_EXCEEDED, 0;
+    }
+
+    texture := pool_get(live_textures, handle);
+    texture.default_view = default_view;
 
     transfer_queue := gpu_get_queue(.MAIN, 0);
     result, cmd_buff := gpu_start_command_recording(transfer_queue);
@@ -114,8 +127,37 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, desc: Gpu_View_Desc = .{}) -> 
     texture := pool_get(live_textures, texture_handle);
     if !texture then return 0;
 
-    // if the view desc doesn't define a specific format then just use the texture native format.
-    format := ifx desc.format != .UNDEFINED then desc.format else texture.desc.format;
+    final_desc := normalize_texture_view_desc(texture.desc, desc);
+    if is_default_texture_view_desc(texture.desc, final_desc) {
+        return texture.default_view;
+    }
+
+    return create_texture_view_handle(texture_handle, final_desc);
+}
+
+gpu_default_texture_view :: (texture_handle: Gpu_Texture) -> Gpu_Texture_View {
+    texture := pool_get(live_textures, texture_handle);
+    if !texture return 0;
+    return texture.default_view;
+}
+
+gpu_texture_view_index :: (view_handle: Gpu_Texture_View) -> u32 {
+    return cast(u32) view_handle;
+}
+
+gpu_texture_sampled_index :: (texture_handle: Gpu_Texture) -> u32 {
+    return cast(u32) gpu_default_texture_view(texture_handle);
+}
+
+gpu_black_texture_view :: () -> Gpu_Texture_View {
+    return fallback_black_view_handle;
+}
+
+create_texture_view_handle :: (texture_handle: Gpu_Texture, final_desc: Gpu_View_Desc) -> Gpu_Texture_View {
+    texture := pool_get(live_textures, texture_handle);
+    if !texture return 0;
+
+    format := final_desc.format;
 
     create_info := VkImageViewCreateInfo.{
         image = texture.vk_image,
@@ -123,10 +165,10 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, desc: Gpu_View_Desc = .{}) -> 
         format = format.(VkFormat),
         subresourceRange = .{
             aspectMask = get_image_aspect_mask(format),
-            baseMipLevel = desc.base_mip,
-            levelCount = min(desc.mip_count, texture.desc.mip_count),
-            baseArrayLayer = desc.base_layer,
-            layerCount = min(desc.layer_count, texture.desc.layer_count),
+            baseMipLevel = final_desc.base_mip,
+            levelCount = min(final_desc.mip_count, texture.desc.mip_count),
+            baseArrayLayer = final_desc.base_layer,
+            layerCount = min(final_desc.layer_count, texture.desc.layer_count),
         },
     };
 
@@ -134,10 +176,11 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, desc: Gpu_View_Desc = .{}) -> 
     vk_result := vkCreateImageView(vk_device, *create_info, null, *vk_view);
     assert_vk_result(vk_result);
 
-    handle := pool_add(*live_views, .{desc, texture_handle, vk_view});
+    handle := pool_add(*live_views, .{final_desc, texture_handle, vk_view});
 
     if handle == 0 {
         log_error("Exceeded maximum number of texture views (%)!", live_views.max);
+        vkDestroyImageView(vk_device, vk_view, null);
         return 0;
     }
 
@@ -153,7 +196,7 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, desc: Gpu_View_Desc = .{}) -> 
 }
 
 gpu_texture_desc :: (view_hande: Gpu_Texture_View) -> bool, Gpu_Texture_Desc {
-    view := pool_get(*live_views, view_hande);
+    view := get_texture_view(view_hande);
     if !view {
         return false, .{};
     }
@@ -213,6 +256,7 @@ Texture :: struct {
     desc: Gpu_Texture_Desc;
     vk_image: VkImage;
     allocation: VmaAllocation;
+    default_view: Gpu_Texture_View;
 
     // retain a mapping of texture to all known views of that texture
     // so they can be destroyed when the texture is destroyed.
@@ -230,6 +274,9 @@ live_textures: Pool(Gpu_Texture, Texture, max = MAX_IMAGES);
 // This effectively drops the usable index space by half. Need to split views into separate pools.
 live_views: Pool(Gpu_Texture_View, Texture_View, max = MAX_IMAGES);
 live_samplers: Pool(Gpu_Sampler, VkSampler,max = MAX_SAMPLERS);
+fallback_black_texture: Gpu_Texture;
+fallback_black_view_handle: Gpu_Texture_View;
+fallback_black_view: Texture_View;
 
 get_image_aspect_mask :: (format: Format) -> VkImageAspectFlags {
     if format == {
@@ -251,7 +298,13 @@ get_image_aspect_mask :: (format: Format) -> VkImageAspectFlags {
 cleanup_texture_view :: (view_handle: Gpu_Texture_View) {
     removed, view := pool_remove(*live_views, view_handle);
     if removed {
-        vkDestroyImageView(vk_device, view.vk_view, null);
+        if view.vk_view != VK_NULL_HANDLE {
+            if fallback_black_view.vk_view != VK_NULL_HANDLE {
+                write_texture_descriptor(fallback_black_view.vk_view, view_handle);
+                write_rw_texture_descriptor(fallback_black_view.vk_view, view_handle);
+            }
+            vkDestroyImageView(vk_device, view.vk_view, null);
+        }
     }
 }
 
@@ -261,6 +314,70 @@ get_texture :: (texture_handle: Gpu_Texture) -> *Texture{
 }
 
 get_texture_view :: (view_handle: Gpu_Texture_View) -> *Texture_View {
+    if view_handle == fallback_black_view_handle {
+        if fallback_black_view.vk_view == VK_NULL_HANDLE return null;
+        return *fallback_black_view;
+    }
     view := pool_get(live_views, view_handle);
     return view;
+}
+
+default_texture_view_desc :: (desc: Gpu_Texture_Desc) -> Gpu_View_Desc {
+    return .{
+        format = desc.format,
+        base_mip = 0,
+        mip_count = desc.mip_count,
+        base_layer = 0,
+        layer_count = desc.layer_count,
+    };
+}
+
+normalize_texture_view_desc :: (texture_desc: Gpu_Texture_Desc, view_desc: Gpu_View_Desc) -> Gpu_View_Desc {
+    return .{
+        format = ifx view_desc.format != .UNDEFINED then view_desc.format else texture_desc.format,
+        base_mip = view_desc.base_mip,
+        mip_count = ifx view_desc.mip_count != 0xFF then max(view_desc.mip_count, 1) else texture_desc.mip_count,
+        base_layer = view_desc.base_layer,
+        layer_count = ifx view_desc.layer_count != 0xFFFF then max(view_desc.layer_count, 1) else texture_desc.layer_count,
+    };
+}
+
+is_default_texture_view_desc :: (texture_desc: Gpu_Texture_Desc, view_desc: Gpu_View_Desc) -> bool {
+    return view_desc.format == texture_desc.format
+        && view_desc.base_mip == 0
+        && view_desc.mip_count == texture_desc.mip_count
+        && view_desc.base_layer == 0
+        && view_desc.layer_count == texture_desc.layer_count;
+}
+
+init_texture_defaults :: () {
+    result, texture := gpu_create_texture(.{
+        type = ._2D,
+        dimensions = .[1, 1, 1],
+        format = .R8G8B8A8_UNORM,
+        usage = .SAMPLED | .STORAGE | .TRANSFER_DST,
+    });
+    assert(result == .SUCCESS, "Failed creating sgpu fallback black texture.");
+
+    fallback_black_texture = texture;
+    fallback_black_view_handle = 0;
+
+    texture_info := get_texture(texture);
+    assert(texture_info != null);
+    default_view := get_texture_view(texture_info.default_view);
+    assert(default_view != null);
+    fallback_black_view = default_view.*;
+
+    black_pixel := u32.[0x00000000];
+    gpu_copy_to_texture(texture, black_pixel.data);
+    write_texture_descriptor(default_view.vk_view, fallback_black_view_handle);
+    write_rw_texture_descriptor(default_view.vk_view, fallback_black_view_handle);
+}
+
+shutdown_texture_defaults :: () {
+    if fallback_black_texture != 0 {
+        gpu_free(fallback_black_texture);
+        fallback_black_texture = 0;
+        fallback_black_view = .{};
+    }
 }
