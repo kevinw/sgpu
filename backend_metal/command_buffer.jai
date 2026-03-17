@@ -453,6 +453,7 @@ gpu_set_pipeline :: (cmd: Gpu_Command_Buffer, pipeline_handle: Gpu_Pipeline) -> 
         return_result_if(pipeline.mtl_render_pipeline == null, .ERROR_INVALID_PIPELINE, "gpu_set_pipeline: invalid render pipeline for graphics pipeline %", pipeline_handle);
 
         current_render_encoder.setRenderPipelineState(current_render_encoder, pipeline.mtl_render_pipeline);
+        current_render_encoder.setFrontFacingWinding(current_render_encoder, .CounterClockwise);
 
         mtl_cull_mode: MTLCullMode = .None;
         if #complete pipeline.raster_desc.cull == {
