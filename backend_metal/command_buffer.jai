@@ -464,6 +464,7 @@ gpu_set_pipeline :: (cmd: Gpu_Command_Buffer, pipeline_handle: Gpu_Pipeline) -> 
         current_render_encoder.setCullMode(current_render_encoder, mtl_cull_mode);
 
     case .COMPUTE;
+        ensure_compute_encoder(cmd_info);
         return_result_if(current_compute_encoder == null, .ERROR_INVALID_BUFFER, "gpu_set_pipeline: no current compute encoder for compute pipeline %", pipeline_handle);
         return_result_if(pipeline.mtl_compute_pipeline == null, .ERROR_INVALID_PIPELINE, "gpu_set_pipeline: invalid compute pipeline for compute pipeline %", pipeline_handle);
 
