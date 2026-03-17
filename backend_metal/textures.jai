@@ -79,6 +79,7 @@ gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}
             format_to_mtl(format)
         );
         if mtl_texture_view == null {
+            log_error("MTLTexture.newTextureViewWithPixelFormat failed");
             return 0;
         }
     }
