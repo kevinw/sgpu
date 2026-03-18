@@ -19,6 +19,12 @@ CPU_Struct :: struct (T: Type)  {
             if it.type.type == {
             case .POINTER;
                 append(*sb, "Gpu_Ptr;\n");
+                /*
+                ti_pointer := it.type.(*Type_Info_Pointer);
+                append(*sb, "Typed_Gpu_Ptr(");
+                print_type_to_builder(*sb, ti_pointer.pointer_to);
+                append(*sb, ");\n");
+                */
             case;
                 print_type_to_builder(*sb, it.type);
                 append(*sb, ";\n");
