@@ -217,7 +217,7 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
     }
 
     assert(cmd_info.current_render_encoder == null);
-    free_command_buffer(queue, cmd_info);
+    free_command_buffer(cmd_info);
 }
 
 gpu_present_current_swapchain :: (signals: [] Gpu_Timeline_Pair = .[], waits: [] Gpu_Timeline_Pair = .[]) {

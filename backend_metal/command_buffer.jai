@@ -17,7 +17,7 @@ gpu_start_command_recording :: (queue_handle: Gpu_Queue) -> Gpu_Result, Gpu_Comm
     assert(allocator != null);
     allocator.reset(allocator);
 
-    cmd_buffer := get_available_command_buffer(queue);
+    cmd_buffer := mtl_device.newCommandBuffer(mtl_device);
     if cmd_buffer == null {
         log_error("Failed to create command buffer");
         return_error(.ERROR_COMMAND_BUFFER_LIMIT_EXCEEDED, 0, "gpu_start_command_recording: get_available_command_buffer returned null");
@@ -217,7 +217,7 @@ gpu_submit :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gpu_Timeline_Pair = .[]
         MTL4CommandQueue.signalEvent(queue.mtl4_queue, semaphore.mtl_event, it.value);
     }
 
-    free_command_buffer(queue, cmd_info);
+    free_command_buffer(cmd_info);
 }
 
 gpu_wait_idle :: () {
@@ -754,10 +754,6 @@ shutdown_queues :: () {
                 release(indirect_buffer);
             }
         }
-        for cmd_buf: it.free_command_buffers {
-            if cmd_buf release(cmd_buf);
-        }
-        array_free(it.free_command_buffers);
         it.* = {};
     }
 }
@@ -851,24 +847,11 @@ Command_Buffer_Info :: struct {
     current_pipeline: Gpu_Pipeline;
 }
 
-get_available_command_buffer :: (using queue: *Queue) -> *MTL4CommandBuffer {
-    if free_command_buffers.count > 0 {
-        cmd_buf := free_command_buffers[free_command_buffers.count - 1];
-        free_command_buffers.count -= 1;
-        return cmd_buf;
-    }
-
-    return mtl_device.newCommandBuffer(mtl_device);
-}
-
-free_command_buffer :: (using queue: *Queue, cmd_info: *Command_Buffer_Info) {
-    assert(cmd_info.cmd_buffer != null);
-    assert(cmd_info.current_render_encoder == null, "free_command_buffer had active render encoder: cmd_info = %", cmd_info);
-    array_add(*free_command_buffers, cmd_info.cmd_buffer);
-    if free_command_buffers.count > 100 {
-        log(tprint("WARNING: Free command buffer count is high: %", free_command_buffers.count));
-    }
-    cmd_info.cmd_buffer = null;
+free_command_buffer :: (using cmd_info: *Command_Buffer_Info) {
+    assert(cmd_buffer != null);
+    assert(current_render_encoder == null, "free_command_buffer had active render encoder: cmd_info = %", cmd_info);
+    release(cmd_buffer);
+    cmd_buffer = null;
 }
 
 Queue :: struct {
@@ -877,7 +860,6 @@ Queue :: struct {
     type: Gpu_Queue_Type;
     command_allocators: [MAX_FRAMES_IN_FLIGHT]*MTL4CommandAllocator;
     indirect_param_buffers: [MAX_FRAMES_IN_FLIGHT]*MTLBuffer;
-    free_command_buffers: [..]*MTL4CommandBuffer;
 }
 
 live_command_buffers: [..] Command_Buffer_Info;
