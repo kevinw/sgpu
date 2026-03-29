@@ -177,6 +177,39 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, before: Stage, after: Stage) {
     vkCmdPipelineBarrier2(cmd_buff, *dep_info);
 }
 
+gpu_buffer_barrier :: (cmd: Gpu_Command_Buffer, buffer: Gpu_Ptr, src_stage: Stage, src_access: Gpu_Access, dst_stage: Stage, dst_access: Gpu_Access) -> Gpu_Result {
+    vk_cmd_buff := get_cmd_buff(cmd);
+    result, vk_buffer, offset := get_buffer_and_offset(buffer);
+    return_if_error(result);
+
+    access_flags :: (access: Gpu_Access) -> VkAccessFlags2 #expand {
+        flags: VkAccessFlags2 = 0;
+        if (access & .SHADER_READ) != 0  flags |= VK_ACCESS_2_SHADER_READ_BIT;
+        if (access & .SHADER_WRITE) != 0 flags |= VK_ACCESS_2_SHADER_WRITE_BIT;
+        if (access & .INDIRECT_READ) != 0 flags |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+        if (access & .HOST_READ) != 0    flags |= VK_ACCESS_2_HOST_READ_BIT;
+        if (access & .HOST_WRITE) != 0   flags |= VK_ACCESS_2_HOST_WRITE_BIT;
+        return flags;
+    }
+
+    buffer_barrier := VkBufferMemoryBarrier2.{
+        srcStageMask = src_stage.(VkPipelineStageFlags2),
+        srcAccessMask = access_flags(src_access),
+        dstStageMask = dst_stage.(VkPipelineStageFlags2),
+        dstAccessMask = access_flags(dst_access),
+        buffer = vk_buffer,
+        offset = offset.(u64),
+        size = VK_WHOLE_SIZE,
+    };
+
+    dep_info := VkDependencyInfo.{
+        bufferMemoryBarrierCount = 1,
+        pBufferMemoryBarriers = *buffer_barrier,
+    };
+    vkCmdPipelineBarrier2(vk_cmd_buff, *dep_info);
+    return .SUCCESS;
+}
+
 gpu_render_pass_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
     before_stage: Stage = .ALL;
     after_stage: Stage = .ALL;
@@ -274,14 +307,18 @@ gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data: [] Gpu_Ptr, dimensions: 
 }
 
 gpu_indirect_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions_gpu: Gpu_Ptr) -> Gpu_Result {
-    // not yet tested
+    return gpu_indirect_dispatch_buffers(cmd, .[data], dimensions_gpu);
+}
+
+gpu_indirect_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data: []Gpu_Ptr, dimensions_gpu: Gpu_Ptr) -> Gpu_Result {
+    assert(data.count > 0, "gpu_indirect_dispatch_buffers requires at least one buffer.");
     vk_cmd_buff := get_cmd_buff(cmd);
 
     result, indirect_buffer, offset := get_buffer_and_offset(dimensions_gpu);
     return_if_error(result);
 
     compute_offset := get_stage_offset(.COMPUTE);
-    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .COMPUTE_BIT, compute_offset, size_of(VkDeviceAddress), *data);
+    vkCmdPushConstants(vk_cmd_buff, vk_pipeline_layout, .COMPUTE_BIT, compute_offset, size_of(VkDeviceAddress), *data[0]);
     vkCmdDispatchIndirect(vk_cmd_buff, indirect_buffer, offset.(u64));
 
     return .SUCCESS;

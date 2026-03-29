@@ -13,9 +13,13 @@ gpu_start_command_recording :: (queue_handle: Gpu_Queue) -> Gpu_Result, Gpu_Comm
     queue := get_queue(queue_handle);
     if queue == null return_error(.FATAL_ERROR_UNKNOWN, 0, "gpu_start_command_recording: invalid queue handle %", queue_handle);
 
-    allocator := queue.command_allocators[frame_index % MAX_FRAMES_IN_FLIGHT];
+    allocator_index := frame_index % MAX_FRAMES_IN_FLIGHT;
+    allocator := queue.command_allocators[allocator_index];
     assert(allocator != null);
-    allocator.reset(allocator);
+    if queue.command_allocator_reset_frame[allocator_index] != frame_index {
+        allocator.reset(allocator);
+        queue.command_allocator_reset_frame[allocator_index] = frame_index;
+    }
 
     cmd_buffer := mtl_device.newCommandBuffer(mtl_device);
     if cmd_buffer == null {
@@ -152,6 +156,26 @@ gpu_barrier :: (cmd: Gpu_Command_Buffer, src_stage: Stage, dst_stage: Stage) {
 
     if current_compute_encoder != null  end_current_compute_encoder(cmd_info);
     if current_render_encoder != null   end_current_render_encoder(cmd_info);
+}
+
+gpu_buffer_barrier :: (cmd: Gpu_Command_Buffer, buffer: Gpu_Ptr, src_stage: Stage, src_access: Gpu_Access, dst_stage: Stage, dst_access: Gpu_Access) -> Gpu_Result {
+    cmd_info := get_cmd_info(cmd);
+    if cmd_info == null return .ERROR_INVALID_BUFFER;
+    if buffer == 0 return .ERROR_INVALID_BUFFER;
+
+    // Metal4 doesn't expose Vulkan-style access masks for raw-address buffers. For the
+    // specific compute-write -> indirect-read hazard, use a conservative queue completion
+    // boundary for correctness. We can refine this later if we find a lighter-weight
+    // queue/event mechanism that proves sufficient.
+    if (src_access & .SHADER_WRITE) != 0 && (dst_access & .INDIRECT_READ) != 0 {
+        end_current_compute_encoder(cmd_info);
+        end_current_render_encoder(cmd_info);
+        gpu_queue_wait_idle(cmd_info.queue);
+        return .SUCCESS;
+    }
+
+    gpu_barrier(cmd, src_stage, dst_stage);
+    return .SUCCESS;
 }
 
 gpu_render_pass_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
@@ -715,6 +739,7 @@ init_queues :: () {
         queue.mtl4_queue = create_command_queue(tprint("%", type));
         for i: 0..MAX_FRAMES_IN_FLIGHT-1 {
             queue.command_allocators[i] = create_command_allocator(tprint("%_alloc_%", type, i));
+            queue.command_allocator_reset_frame[i] = U64_MAX;
             buf := mtl_device.newBufferWithLength(mtl_device, size_of(Indirect_Params), xx MTLResource.StorageModeShared);
             buf.setLabel(buf, to_temp_nsstring(tprint("sgpu indirect params (%) %", type, i)));
             add_to_residency(buf);
@@ -859,6 +884,7 @@ Queue :: struct {
     index_in_type: u32;
     type: Gpu_Queue_Type;
     command_allocators: [MAX_FRAMES_IN_FLIGHT]*MTL4CommandAllocator;
+    command_allocator_reset_frame: [MAX_FRAMES_IN_FLIGHT] u64;
     indirect_param_buffers: [MAX_FRAMES_IN_FLIGHT]*MTLBuffer;
 }
 

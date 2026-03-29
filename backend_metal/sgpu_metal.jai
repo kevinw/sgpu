@@ -304,6 +304,15 @@ Pass_Access :: enum {
     TRANSFER_WRITE;
 }
 
+Gpu_Access :: enum_flags {
+    NONE;
+    SHADER_READ;
+    SHADER_WRITE;
+    INDIRECT_READ;
+    HOST_READ;
+    HOST_WRITE;
+}
+
 Gpu_Queue_Type :: enum u8 {
     MAIN        :: 0;
     COMPUTE     :: 1;

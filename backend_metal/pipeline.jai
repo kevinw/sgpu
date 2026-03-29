@@ -352,6 +352,57 @@ gpu_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr, dimensio
     MTL4ComputeCommandEncoder.dispatchThreadgroups(compute_encoder, threadgroups, threads_per_group);
 }
 
+gpu_indirect_dispatch :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions_gpu: Gpu_Ptr) -> Gpu_Result {
+    return gpu_indirect_dispatch_buffers(cmd, .[data], dimensions_gpu);
+}
+
+gpu_indirect_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr, dimensions_gpu: Gpu_Ptr) -> Gpu_Result {
+    cmd_info := get_cmd_info(cmd);
+    if cmd_info == null return .FATAL_ERROR_UNKNOWN;
+
+    pipeline := pool_get(live_pipelines, cmd_info.current_pipeline);
+    if pipeline == null return_error(.ERROR_INVALID_PIPELINE, "gpu_indirect_dispatch: no pipeline for %", cmd_info.current_pipeline);
+    if pipeline.type != .COMPUTE return_error(.ERROR_INVALID_PIPELINE, "gpu_indirect_dispatch: pipeline is not .COMPUTE");
+
+    queue := get_queue(cmd_info.queue);
+    if queue == null || queue.mtl4_queue == null return_error(.FATAL_ERROR_UNKNOWN, "gpu_indirect_dispatch: no queue (cmd_info.queue is %)", cmd_info.queue);
+
+    end_current_render_encoder(cmd_info);
+
+    compute_encoder := ensure_compute_encoder(cmd_info);
+    if compute_encoder == null return .FATAL_ERROR_UNKNOWN;
+
+    compute_encoder.setComputePipelineState(compute_encoder, pipeline.mtl_compute_pipeline);
+
+    table := bindless_lease_argument_table();
+    if table == null return .FATAL_ERROR_UNKNOWN;
+
+    if pipeline.compute_binding_mode == .DIRECT_ADDRESSES {
+        for data_ptrs {
+            MTL4ArgumentTable.setAddress(table, cast(MTLGPUAddress) it, cast(NSUInteger) it_index);
+        }
+    } else {
+        ptr0 := ifx data_ptrs.count > 0 then data_ptrs[0] else 0;
+        ptr1 := ifx data_ptrs.count > 1 then data_ptrs[1] else 0;
+        ptr2 := ifx data_ptrs.count > 2 then data_ptrs[2] else 0;
+        indirect_buffer := get_indirect_params_buffer(queue, ptr0, ptr1, ptr2);
+        MTL4ArgumentTable.setAddress(table, indirect_buffer.gpuAddress(indirect_buffer), 0);
+    }
+    MTL4ComputeCommandEncoder.setArgumentTable(compute_encoder, table);
+
+    max_threads := MTLComputePipelineState.maxTotalThreadsPerThreadgroup(pipeline.mtl_compute_pipeline);
+    threads_per_group := MTLSize.{ width = 64, height = 1, depth = 1 };
+    if threads_per_group.width > max_threads {
+        threads_per_group.width = max_threads;
+    }
+
+    MTL4ComputeCommandEncoder.dispatchThreadgroupsWithIndirectBuffer(
+        compute_encoder,
+        cast(MTLGPUAddress) dimensions_gpu,
+        threads_per_group);
+    return .SUCCESS;
+}
+
 new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
     compile_options := new_scoped_common_mtl_compile_options();
 
