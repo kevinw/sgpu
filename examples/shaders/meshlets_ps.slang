@@ -5,7 +5,6 @@ struct Vertex {
 struct Primitive {
     [[vk::location(0)]]
     nointerpolation float3 color;
-    bool cull: SV_CullPrimitive;
 }
 
 [shader("fragment")]

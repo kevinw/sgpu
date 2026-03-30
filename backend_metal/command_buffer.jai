@@ -408,8 +408,9 @@ gpu_set_depth_stencil_state :: (cmd: Gpu_Command_Buffer, desc: Gpu_Depth_Stencil
     // Create depth stencil state
     depth_desc := objc_new_defer_release(MTLDepthStencilDescriptor);
 
-    // Set depth compare function
-    MTLDepthStencilDescriptor.setDepthCompareFunction(depth_desc, compare_op_to_mtl(desc.depth_test));
+    // Match Vulkan semantics: .NEVER means depth testing disabled, not "always fail".
+    depth_compare := ifx desc.depth_test == .NEVER then MTLCompareFunction.Always else compare_op_to_mtl(desc.depth_test);
+    MTLDepthStencilDescriptor.setDepthCompareFunction(depth_desc, depth_compare);
 
     // Set depth write enable
     depth_write := (desc.depth_mode & .WRITE) != 0;

@@ -19,6 +19,7 @@ DEFAULT_EXAMPLES_TO_BUILD :: string.[
     "01_memory",
     "02_compute",
     "03_hello_square",
+    "04_mesh_shaders",
 ];
 
 BIN_DIR :: "bin";

@@ -1,5 +1,26 @@
 #scope_export
 
+gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
+    assert(desc.mesh_shader.count != 0, "gpu_create_mesh_pipeline requires mesh_shader.");
+    assert(desc.pixel_shader.count != 0, "gpu_create_mesh_pipeline requires pixel_shader.");
+
+    shader_stages: [..]VkPipelineShaderStageCreateInfo;
+    shader_stages.allocator = temp;
+
+    if desc.task_shader.count != 0 {
+        array_add(*shader_stages, create_shader_stage(desc.task_shader, .TASK_BIT_EXT));
+    }
+    array_add(*shader_stages, create_shader_stage(desc.mesh_shader, .MESH_BIT_EXT));
+    array_add(*shader_stages, create_shader_stage(desc.pixel_shader, .FRAGMENT_BIT));
+    defer {
+        for shader_stages {
+            vkDestroyShaderModule(vk_device, it.module, null);
+        }
+    }
+
+    return create_graphics_pipeline(shader_stages, desc.raster_desc);
+}
+
 gpu_create_compute_pipeline :: (spirv: [] u8) -> Gpu_Pipeline {
     stage := create_shader_stage(spirv, .COMPUTE_BIT);
 
@@ -67,21 +88,6 @@ gpu_create_compute_pipeline_from_metallib :: (metallib_path: string, function_na
     log_error("gpu_create_compute_pipeline_from_metallib is unsupported on Vulkan backend.");
     return 0;
 }
-
-gpu_create_meshlets_pipeline :: (meshlets_spirv: [] u8, pixel_spirv: [] u8, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
-    shader_stages := VkPipelineShaderStageCreateInfo.[
-        create_shader_stage(meshlets_spirv, .MESH_BIT_EXT),
-        create_shader_stage(pixel_spirv, .FRAGMENT_BIT)
-    ];
-    defer {
-        for shader_stages {
-            vkDestroyShaderModule(vk_device, it.module, null);
-        }
-    }
-
-    return create_graphics_pipeline(shader_stages, raster_desc);
-}
-
 gpu_free_pipeline :: (pipeline: Gpu_Pipeline) {
     removed, pipeline := pool_remove(*live_pipelines, pipeline);
     if removed {

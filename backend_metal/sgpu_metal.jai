@@ -436,6 +436,15 @@ Gpu_Raster_Desc :: struct {
     blend_state: *Gpu_Blend_Desc;
 }
 
+Gpu_Mesh_Pipeline_Desc :: struct {
+    task_shader: []u8;
+    mesh_shader: []u8;
+    pixel_shader: []u8;
+    raster_desc: Gpu_Raster_Desc;
+    task_threads: [3]u32;
+    mesh_threads: [3]u32;
+}
+
 Gpu_Texture_Desc :: struct {
     type: Texture_Type = ._2D;
     dimensions: [3] u32;
