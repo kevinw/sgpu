@@ -21,6 +21,11 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
     return create_graphics_pipeline(shader_stages, desc.raster_desc);
 }
 
+gpu_get_mesh_pipeline_max_total_threadgroups_per_grid :: (pipeline_handle: Gpu_Pipeline) -> u32 {
+    _ = pipeline_handle;
+    return 0;
+}
+
 gpu_create_compute_pipeline :: (spirv: [] u8) -> Gpu_Pipeline {
     stage := create_shader_stage(spirv, .COMPUTE_BIT);
 

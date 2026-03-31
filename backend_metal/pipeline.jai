@@ -159,6 +159,7 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
         required_threads_per_mesh_threadgroup = ifx render_pipeline.requiredThreadsPerMeshThreadgroup(render_pipeline).width != 0
             then render_pipeline.requiredThreadsPerMeshThreadgroup(render_pipeline)
             else fallback_threadgroup_size(mesh_threads),
+        max_total_threadgroups_per_mesh_grid = cast(u32) render_pipeline.maxTotalThreadgroupsPerMeshGrid(render_pipeline),
     });
 }
 
@@ -644,6 +645,7 @@ Pipeline :: struct {
     has_mesh_object_stage: bool;
     required_threads_per_object_threadgroup: MTLSize;
     required_threads_per_mesh_threadgroup: MTLSize;
+    max_total_threadgroups_per_mesh_grid: u32;
 }
 
 Compute_Binding_Mode :: enum {
@@ -657,6 +659,15 @@ hot_reload_metallib_copy_counter: u64;
 get_pipeline :: (handle: Gpu_Pipeline) -> *Pipeline {
     return pool_get(live_pipelines, handle);
 }
+
+#scope_export
+gpu_get_mesh_pipeline_max_total_threadgroups_per_grid :: (pipeline_handle: Gpu_Pipeline) -> u32 {
+    pipeline := get_pipeline(pipeline_handle);
+    if pipeline == null || !pipeline.is_mesh_pipeline return 0;
+    return pipeline.max_total_threadgroups_per_mesh_grid;
+}
+
+#scope_module
 
 detect_compute_binding_mode :: (metal_source: []u8) -> Compute_Binding_Mode {
     source := cast(string) metal_source;
