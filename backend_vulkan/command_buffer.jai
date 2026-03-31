@@ -481,7 +481,12 @@ gpu_draw_indexed_indirect :: (cmd: Gpu_Command_Buffer, vertex_data: Gpu_Ptr, pix
 }
 
 gpu_draw_meshlets :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, dimensions: [3] u32) -> Gpu_Result {
+    return gpu_draw_meshlets(cmd, data, .[], dimensions);
+}
+
+gpu_draw_meshlets :: (cmd: Gpu_Command_Buffer, data: Gpu_Ptr, extra_bindings: []Gpu_Ptr, dimensions: [3] u32) -> Gpu_Result {
     if !vkCmdDrawMeshTasksEXT then return .ERROR_MISSING_OPTIONAL_EXTENSION;
+    assert(extra_bindings.count == 0, "gpu_draw_meshlets extra_bindings are not implemented on Vulkan yet.");
 
     vk_cmd_buff := get_cmd_buff(cmd);
 

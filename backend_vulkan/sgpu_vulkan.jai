@@ -447,6 +447,8 @@ Gpu_Mesh_Pipeline_Desc :: struct {
     raster_desc: Gpu_Raster_Desc;
     task_threads: [3]u32;
     mesh_threads: [3]u32;
+    payload_memory_length: u32;
+    max_total_threadgroups_per_mesh_grid: u32;
 }
 
 Gpu_Texture_Desc :: struct {

@@ -107,6 +107,7 @@ gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
         sleep_milliseconds(10);
         return .SUCCESS, 0;  // No drawable available (timeout or error)
     }
+    retain(current_drawable);
 
     ensure_swapchain_layer_residency();
 
@@ -114,6 +115,7 @@ gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
     drawable_texture := CAMetalDrawable.texture(current_drawable);
     if drawable_texture == null {
         log_error("Drawable has no texture.");
+        release_and_set_null(*current_drawable);
         return .SUCCESS, 0;
     }
 
@@ -236,6 +238,7 @@ gpu_present_current_swapchain :: (signals: [] Gpu_Timeline_Pair = .[], waits: []
     if current_drawable {
         mtl4_queue.signalDrawable(mtl4_queue, current_drawable);
         current_drawable.present(current_drawable);
+        release(current_drawable);
     }
 
     for signals {
