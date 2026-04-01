@@ -2,28 +2,22 @@
 
 gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
     auto_release_temp();
-    log("mesh pipeline create: task=% mesh=% pixel=% payload=% max_groups=%",
-        desc.task_shader.count, desc.mesh_shader.count, desc.pixel_shader.count,
-        desc.payload_memory_length, desc.max_total_threadgroups_per_mesh_grid);
-    assert(desc.mesh_threads[0] != 0 && desc.mesh_threads[1] != 0 && desc.mesh_threads[2] != 0,
-        "gpu_create_mesh_pipeline requires explicit mesh_threads.");
+    assert(desc.mesh_threads[0] != 0 && desc.mesh_threads[1] != 0 && desc.mesh_threads[2] != 0, "gpu_create_mesh_pipeline requires explicit mesh_threads.");
     assert(desc.pixel_shader.count != 0, "gpu_create_mesh_pipeline requires pixel_shader.");
     assert(desc.mesh_shader.count != 0, "gpu_create_mesh_pipeline requires mesh_shader.");
-    assert(desc.task_shader.count == 0 || (desc.task_threads[0] != 0 && desc.task_threads[1] != 0 && desc.task_threads[2] != 0),
-        "gpu_create_mesh_pipeline requires explicit task_threads when task_shader is provided.");
+    assert(desc.task_shader.count == 0 || (desc.task_threads[0] != 0 && desc.task_threads[1] != 0 && desc.task_threads[2] != 0), "gpu_create_mesh_pipeline requires explicit task_threads when task_shader is provided.");
 
-    log("mesh pipeline: compile mesh library");
-    mesh_library := new_scoped_library_or_return_0(desc.mesh_shader, "mesh shader");
-    log("mesh pipeline: compile fragment library");
+    mesh_library  := new_scoped_library_or_return_0(desc.mesh_shader, "mesh shader");
     pixel_library := new_scoped_library_or_return_0(desc.pixel_shader, "fragment shader");
 
     task_library: *MTLLibrary = mesh_library;
     if desc.task_shader.count != 0 && (desc.task_shader.count != desc.mesh_shader.count || desc.task_shader.data != desc.mesh_shader.data) {
-        log("mesh pipeline: compile task library");
-        task_library = new_scoped_library_or_return_0(desc.task_shader, "task shader");
+        task_library = new_library_or_return_0(desc.task_shader, "task shader");
+    }
+    defer if task_library {
+        release(task_library);
     }
 
-    log("mesh pipeline: lookup mesh function");
     mesh_function := MTLLibrary.newFunctionWithName(mesh_library, to_temp_nsstring("meshMain"));
     if mesh_function == null {
         log_error("Failed to find meshMain in mesh shader library");
@@ -31,7 +25,6 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
     }
     //defer release(mesh_function);
 
-    log("mesh pipeline: lookup fragment function");
     fragment_function := MTLLibrary.newFunctionWithName(pixel_library, to_temp_nsstring("fragmentMain"));
     if fragment_function == null {
         log_error("Failed to find fragmentMain in fragment shader library");
@@ -41,7 +34,6 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
 
     object_function: *MTLFunction;
     if desc.task_shader.count != 0 {
-        log("mesh pipeline: lookup object function");
         object_function = MTLLibrary.newFunctionWithName(task_library, to_temp_nsstring("objectMain"));
         if object_function == null {
             log_error("Failed to find objectMain in task shader library");
@@ -67,42 +59,33 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
         return library_desc;
     }
 
-    log("mesh pipeline: create pipeline descriptor");
     pipeline_desc := objc_new_defer_release(MTL4MeshRenderPipelineDescriptor);
-    log("mesh pipeline: created pipeline descriptor");
-    log("mesh pipeline: set mesh function descriptor");
-    pipeline_desc.setMeshFunctionDescriptor(pipeline_desc, func_desc(mesh_library, mesh_function));
-    if object_function != null {
-        log("mesh pipeline: set object function descriptor");
-        pipeline_desc.setObjectFunctionDescriptor(pipeline_desc, func_desc(task_library, object_function));
-    }
-    log("mesh pipeline: set fragment function descriptor");
-    pipeline_desc.setFragmentFunctionDescriptor(pipeline_desc, func_desc(pixel_library, fragment_function));
-    log("mesh pipeline: set raster sample count");
-    pipeline_desc.setRasterSampleCount(pipeline_desc, max(1, desc.raster_desc.sample_count).(NSUInteger));
-    log("mesh pipeline: set max mesh threads");
-    pipeline_desc.setMaxTotalThreadsPerMeshThreadgroup(pipeline_desc, max_mesh_threads.(NSUInteger));
-    pipeline_desc.setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
-    if mesh_threads.width != 0 && mesh_threads.height != 0 && mesh_threads.depth != 0 {
-        log("mesh pipeline: set required mesh threads");
-        pipeline_desc.setRequiredThreadsPerMeshThreadgroup(pipeline_desc, mesh_threads);
-    }
-    if object_function != null {
-        max_object_threads := max(1, (object_threads.width * object_threads.height * object_threads.depth).(int));
-        log("mesh pipeline: set max object threads");
-        pipeline_desc.setMaxTotalThreadsPerObjectThreadgroup(pipeline_desc, max_object_threads.(NSUInteger));
-        pipeline_desc.setObjectThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
-        if object_threads.width != 0 && object_threads.height != 0 && object_threads.depth != 0 {
-            log("mesh pipeline: set required object threads");
-            pipeline_desc.setRequiredThreadsPerObjectThreadgroup(pipeline_desc, object_threads);
+    {
+        using pipeline_desc;
+        setMeshFunctionDescriptor(pipeline_desc, func_desc(mesh_library, mesh_function));
+        if object_function != null {
+            setObjectFunctionDescriptor(pipeline_desc, func_desc(task_library, object_function));
         }
-        if desc.payload_memory_length != 0 {
-            log("mesh pipeline: set payload memory length");
-            pipeline_desc.setPayloadMemoryLength(pipeline_desc, desc.payload_memory_length.(NSUInteger));
+        setFragmentFunctionDescriptor(pipeline_desc, func_desc(pixel_library, fragment_function));
+        setRasterSampleCount(pipeline_desc, max(1, desc.raster_desc.sample_count).(NSUInteger));
+        setMaxTotalThreadsPerMeshThreadgroup(pipeline_desc, max_mesh_threads.(NSUInteger));
+        setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
+        if mesh_threads.width != 0 && mesh_threads.height != 0 && mesh_threads.depth != 0 {
+            setRequiredThreadsPerMeshThreadgroup(pipeline_desc, mesh_threads);
         }
-        if desc.max_total_threadgroups_per_mesh_grid != 0 {
-            log("mesh pipeline: set max mesh grid threadgroups");
-            pipeline_desc.setMaxTotalThreadgroupsPerMeshGrid(pipeline_desc, desc.max_total_threadgroups_per_mesh_grid.(NSUInteger));
+        if object_function != null {
+            max_object_threads := max(1, (object_threads.width * object_threads.height * object_threads.depth).(int));
+            setMaxTotalThreadsPerObjectThreadgroup(pipeline_desc, max_object_threads.(NSUInteger));
+            setObjectThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
+            if object_threads.width != 0 && object_threads.height != 0 && object_threads.depth != 0 {
+                setRequiredThreadsPerObjectThreadgroup(pipeline_desc, object_threads);
+            }
+            if desc.payload_memory_length != 0 {
+                setPayloadMemoryLength(pipeline_desc, desc.payload_memory_length.(NSUInteger));
+            }
+            if desc.max_total_threadgroups_per_mesh_grid != 0 {
+                setMaxTotalThreadgroupsPerMeshGrid(pipeline_desc, desc.max_total_threadgroups_per_mesh_grid.(NSUInteger));
+            }
         }
     }
 
@@ -129,7 +112,6 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
     }
 
     compiler_desc := objc_new_defer_release(MTL4CompilerDescriptor);
-    log("mesh pipeline: create compiler");
     error: *NSError = null;
     compiler := MTLDevice.newCompilerWithDescriptor(mtl_device, compiler_desc, *error);
     if error != null || compiler == null {
@@ -140,10 +122,7 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
 
     task_options: *MTL4CompilerTaskOptions = null;
     render_pipeline := MTL4Compiler.newRenderPipelineStateWithDescriptor(compiler, cast(*MTL4PipelineDescriptor) pipeline_desc, task_options, *error);
-    log("mesh pipeline: create render pipeline done");
-    if log_error_if_not_null(error) {
-        return 0;
-    }
+    if log_error_if_not_null(error) return 0;
     if render_pipeline == null {
         log_error("Failed to create mesh render pipeline state");
         return 0;
@@ -598,6 +577,21 @@ gpu_indirect_dispatch_buffers :: (cmd: Gpu_Command_Buffer, data_ptrs: []Gpu_Ptr,
         cast(MTLGPUAddress) dimensions_gpu,
         threads_per_group);
     return .SUCCESS;
+}
+
+new_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
+    compile_options := new_scoped_common_mtl_compile_options();
+    error: *NSError;
+    library := MTLDevice.newLibraryWithSource(mtl_device, to_temp_nsstring(cast(string)source), compile_options, *error);
+    if log_error_if_not_null(error) {
+        log_error("Failed to compile %.", debug_name);
+        `return 0;
+    }
+    if library == null {
+        log_error("Failed to create % library", debug_name);
+        `return 0;
+    }
+    return library;
 }
 
 new_scoped_library_or_return_0 :: (source: []u8, debug_name: string) -> *MTLLibrary #expand {
