@@ -24,12 +24,11 @@ bindless_set_texture_resource :: (view_handle: Gpu_Texture_View, texture: *MTLTe
         return;
     }
 
-    resource_id: MTLResourceID;
+    resource_id: MTLResourceID = .{};
     if texture_view_pool != null && texture != null {
         resource_id = texture_view_pool.setTextureView(texture_view_pool, texture, bind_index);
-    } else {
-        resource_id = .{};
     }
+
     bindless_texture_resources[bind_index] = resource_id;
     bindless_static_generation += 1;
 }

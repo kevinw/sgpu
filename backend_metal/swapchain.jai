@@ -68,6 +68,11 @@ gpu_init_swapchain :: (native_window: u64, window_type: Native_Window_Type) {
 gpu_swapchain_resize :: () {
     // Wait for any pending work to complete
     gpu_wait_idle();
+    if current_drawable != null {
+        release_and_set_null(*current_drawable);
+    }
+    _current_swapchain_view = 0;
+    current_swapchain_view = 0;
 
     update_metal_layer_drawable_size(xx native_window_handle);
 
@@ -80,7 +85,12 @@ gpu_swapchain_resize :: () {
 }
 
 gpu_destroy_swapchain :: () {
+    if current_drawable != null {
+        release_and_set_null(*current_drawable);
+    }
     cleanup_swapchain_views();
+    _current_swapchain_view = 0;
+    current_swapchain_view = 0;
     swapchain_layer = null;
 }
 
@@ -391,8 +401,6 @@ create_swapchain_texture_view :: (mtl_texture: *MTLTexture) -> Gpu_Texture_View 
         texture.default_view = view_handle;
     }
 
-    bindless_set_texture_resource(view_handle, mtl_texture);
-
     // Track this swapchain texture
     entry: Swapchain_Texture_Entry;
     entry.texture_handle = texture_handle;
@@ -415,6 +423,7 @@ cleanup_swapchain_views :: () {
     }
     array_reset(*swapchain_textures);
     current_swapchain_view = NULL_HANDLE;
+    _current_swapchain_view = 0;
 }
 
 ns_window_get_metal_layer :: (window: *NSWindow) -> *CAMetalLayer {
@@ -490,6 +499,11 @@ ensure_swapchain_layer_residency :: () {
     if layer_residency_set != null {
         queue.mtl4_queue.removeResidencySet(queue.mtl4_queue, layer_residency_set);
     }
+
+    //
+    // TODO: investigate this
+    //
+
     queue.mtl4_queue.addResidencySet(queue.mtl4_queue, next_residency_set);
     layer_residency_set = next_residency_set;
 }
