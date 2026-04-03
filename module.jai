@@ -12,6 +12,8 @@
 Gpu_Ptr :: #type,distinct u64;
 
 CPU_Struct :: struct (T: Type)  {
+    GPU_Type :: T;
+
     #insert #run -> string {
         sb: String_Builder;
         for type_info(T).members {
