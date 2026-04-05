@@ -42,11 +42,11 @@ gpu_alloc_view :: (using arena: *Gpu_Arena, $type: Type, count: s64, min_alignme
 gpu_arena_alloc_view :: gpu_alloc_view;
 
 gpu_arena_alloc :: (using arena: *Gpu_Arena, alloc_size: s64, min_alignment: s64 = 16) -> *void, Gpu_Ptr {
-    alignment := calculate_alignment(min_alignment);
-    aligned_size := align_forward(alloc_size, alignment);
-    if head + aligned_size >= size {
-        return null, 0;
-    }
+    aligned_size := gpu_arena_required_size(alloc_size, min_alignment);
+    requested_end := head + aligned_size;
+    assert(requested_end <= size,
+        "gpu_arena_alloc overflow: request=% aligned=% alignment=% head=% size=%",
+        alloc_size, aligned_size, calculate_alignment(min_alignment), head, size);
 
     result_cpu := arena.cpu + arena.head;
     result_gpu := arena.gpu + arena.head.(Gpu_Ptr);
@@ -64,6 +64,15 @@ gpu_reset_arena :: (arena: *Gpu_Arena) {
 
 gpu_free_arena :: (arena: Gpu_Arena) {
     gpu_free(arena.cpu);
+}
+
+gpu_arena_required_size :: (alloc_size: s64, min_alignment: s64 = 16) -> s64 {
+    alignment := calculate_alignment(min_alignment);
+    return align_forward(alloc_size, alignment);
+}
+
+gpu_arena_required_view_size :: ($type: Type, count: s64, min_alignment: s64 = 16) -> s64 {
+    return gpu_arena_required_size(size_of(type) * count, min_alignment);
 }
 
 #scope_module

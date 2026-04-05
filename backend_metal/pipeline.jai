@@ -284,6 +284,143 @@ gpu_create_graphics_pipeline_from_metallib :: (metallib_path: string, vertex_fun
     return _internal_gpu_create_graphics_pipeline_with_names(library, library, raster_desc, vertex_function_name, fragment_function_name);
 }
 
+gpu_create_mesh_pipeline_from_metallib :: (metallib_path: string, task_function_name: string, mesh_function_name: string, fragment_function_name: string, desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
+    auto_release_temp();
+    if metallib_path.count == 0 || mesh_function_name.count == 0 || fragment_function_name.count == 0 {
+        log_error("gpu_create_mesh_pipeline_from_metallib: metallib path/function names missing.");
+        return 0;
+    }
+    assert(desc.mesh_threads[0] != 0 && desc.mesh_threads[1] != 0 && desc.mesh_threads[2] != 0, "gpu_create_mesh_pipeline_from_metallib requires explicit mesh_threads.");
+    if task_function_name.count != 0 {
+        assert(desc.task_threads[0] != 0 && desc.task_threads[1] != 0 && desc.task_threads[2] != 0, "gpu_create_mesh_pipeline_from_metallib requires explicit task_threads when task shader is provided.");
+    }
+
+    error: *NSError = null;
+    lib_url := NSURL.fileURLWithPath(to_temp_nsstring(metallib_path));
+    library := MTLDevice.newLibraryWithURL(mtl_device, lib_url, *error);
+    if error != null || library == null {
+        log_error_if_not_null(error, "newLibraryWithURL");
+        return 0;
+    }
+    defer release(library);
+
+    mesh_function := MTLLibrary.newFunctionWithName(library, to_temp_nsstring(mesh_function_name));
+    if mesh_function == null {
+        log_error("Failed to find % in mesh metallib", mesh_function_name);
+        return 0;
+    }
+
+    fragment_function := MTLLibrary.newFunctionWithName(library, to_temp_nsstring(fragment_function_name));
+    if fragment_function == null {
+        log_error("Failed to find % in mesh metallib", fragment_function_name);
+        return 0;
+    }
+
+    object_function: *MTLFunction;
+    if task_function_name.count != 0 {
+        object_function = MTLLibrary.newFunctionWithName(library, to_temp_nsstring(task_function_name));
+        if object_function == null {
+            log_error("Failed to find % in mesh metallib", task_function_name);
+            return 0;
+        }
+    } else {
+        object_function = null;
+    }
+
+    mesh_threads := to_mtl_size(desc.mesh_threads);
+    object_threads := to_mtl_size(desc.task_threads);
+    max_mesh_threads := 128;
+    if mesh_threads.width != 0 && mesh_threads.height != 0 && mesh_threads.depth != 0 {
+        max_mesh_threads = (mesh_threads.width * mesh_threads.height * mesh_threads.depth).(int);
+    }
+
+    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction) -> *MTL4FunctionDescriptor #expand {
+        library_desc := objc_new(MTL4LibraryFunctionDescriptor);
+        MTL4LibraryFunctionDescriptor.setLibrary(library_desc, mtl_library);
+        MTL4LibraryFunctionDescriptor.setName(library_desc, MTLFunction.name(function));
+        return library_desc;
+    }
+
+    pipeline_desc := objc_new_defer_release(MTL4MeshRenderPipelineDescriptor);
+    {
+        using pipeline_desc;
+        setMeshFunctionDescriptor(pipeline_desc, func_desc(library, mesh_function));
+        if object_function != null {
+            setObjectFunctionDescriptor(pipeline_desc, func_desc(library, object_function));
+        }
+        setFragmentFunctionDescriptor(pipeline_desc, func_desc(library, fragment_function));
+        setRasterSampleCount(pipeline_desc, max(1, desc.raster_desc.sample_count).(NSUInteger));
+        setMaxTotalThreadsPerMeshThreadgroup(pipeline_desc, max_mesh_threads.(NSUInteger));
+        setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
+        if mesh_threads.width != 0 && mesh_threads.height != 0 && mesh_threads.depth != 0 {
+            setRequiredThreadsPerMeshThreadgroup(pipeline_desc, mesh_threads);
+        }
+        if object_function != null {
+            max_object_threads := max(1, (object_threads.width * object_threads.height * object_threads.depth).(int));
+            setMaxTotalThreadsPerObjectThreadgroup(pipeline_desc, max_object_threads.(NSUInteger));
+            setObjectThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
+            if object_threads.width != 0 && object_threads.height != 0 && object_threads.depth != 0 {
+                setRequiredThreadsPerObjectThreadgroup(pipeline_desc, object_threads);
+            }
+            if desc.payload_memory_length != 0 {
+                setPayloadMemoryLength(pipeline_desc, desc.payload_memory_length.(NSUInteger));
+            }
+            if desc.max_total_threadgroups_per_mesh_grid != 0 {
+                setMaxTotalThreadgroupsPerMeshGrid(pipeline_desc, desc.max_total_threadgroups_per_mesh_grid.(NSUInteger));
+            }
+        }
+    }
+
+    color_attachments := pipeline_desc.colorAttachments(pipeline_desc);
+    for desc.raster_desc.color_targets {
+        color_attachment := MTL4RenderPipelineColorAttachmentDescriptorArray.objectAtIndexedSubscript(color_attachments, it_index.(NSUInteger));
+        using color_attachment;
+        setPixelFormat(color_attachment, format_to_mtl(it.format));
+        if desc.raster_desc.blend_state != null {
+            blend := desc.raster_desc.blend_state;
+            if blend.src_color_factor != .ZERO || blend.dst_color_factor != .ZERO {
+                setBlendingState(color_attachment, .Enabled);
+                setSourceRGBBlendFactor(color_attachment, blend_factor_to_mtl(blend.src_color_factor));
+                setDestinationRGBBlendFactor(color_attachment, blend_factor_to_mtl(blend.dst_color_factor));
+                setRgbBlendOperation(color_attachment, blend_op_to_mtl(blend.color_op));
+                setSourceAlphaBlendFactor(color_attachment, blend_factor_to_mtl(blend.src_alpha_factor));
+                setDestinationAlphaBlendFactor(color_attachment, blend_factor_to_mtl(blend.dst_alpha_factor));
+                setAlphaBlendOperation(color_attachment, blend_op_to_mtl(blend.alpha_op));
+            }
+            setWriteMask(color_attachment, color_write_mask_to_mtl(blend.color_write_mask));
+        }
+    }
+    compiler_desc := objc_new_defer_release(MTL4CompilerDescriptor);
+    error = null;
+    compiler := MTLDevice.newCompilerWithDescriptor(mtl_device, compiler_desc, *error);
+    if error != null || compiler == null {
+        log_error_if_not_null(error, "newCompilerWithDescriptor");
+        return 0;
+    }
+    defer release(compiler);
+
+    error = null;
+    task_options: *MTL4CompilerTaskOptions = null;
+    pipeline_state := MTL4Compiler.newRenderPipelineStateWithDescriptor(compiler, cast(*MTL4PipelineDescriptor) pipeline_desc, task_options, *error);
+    if error != null || pipeline_state == null {
+        log_error_if_not_null(error, "newRenderPipelineStateWithDescriptor");
+        return 0;
+    }
+
+    return pool_add(*live_pipelines, .{
+        type = .GRAPHICS,
+        mtl_render_pipeline = cast(*MTLRenderPipelineState) pipeline_state,
+        raster_desc = desc.raster_desc,
+        is_mesh_pipeline = true,
+        has_mesh_object_stage = object_function != null,
+        required_threads_per_object_threadgroup = fallback_threadgroup_size(pipeline_state.requiredThreadsPerObjectThreadgroup(pipeline_state)),
+        required_threads_per_mesh_threadgroup = ifx pipeline_state.requiredThreadsPerMeshThreadgroup(pipeline_state).width != 0
+            then pipeline_state.requiredThreadsPerMeshThreadgroup(pipeline_state)
+            else fallback_threadgroup_size(mesh_threads),
+        max_total_threadgroups_per_mesh_grid = cast(u32) pipeline_state.maxTotalThreadgroupsPerMeshGrid(pipeline_state),
+    });
+}
+
 _internal_gpu_create_graphics_pipeline :: (vertex_library: *MTLLibrary, pixel_library: *MTLLibrary, raster_desc: Gpu_Raster_Desc) -> Gpu_Pipeline {
     return _internal_gpu_create_graphics_pipeline_with_names(vertex_library, pixel_library, raster_desc, "", "");
 }
@@ -446,16 +583,17 @@ keyEnumerator :: (dict: *NSDictionary($K, $V)) -> *NSEnumerator(K) {
 }
 
 validate_function_constants :: (function: *MTLFunction, constants: *MTLFunctionConstantValues) {
+    //
+    // TODO - delete or fix this up and use it in non release builds?
+    //
     fn_constants_dict := function.functionConstantsDictionary(function);
 
     key_enumerator := keyEnumerator(fn_constants_dict);
-    log("---");
     while true {
         next_object := nextObject(key_enumerator);
         if next_object == null {
             break;
         }
-        log("KEY: %", to_string(next_object));
     }
 
 }

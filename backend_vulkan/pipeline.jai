@@ -93,6 +93,16 @@ gpu_create_compute_pipeline_from_metallib :: (metallib_path: string, function_na
     log_error("gpu_create_compute_pipeline_from_metallib is unsupported on Vulkan backend.");
     return 0;
 }
+
+gpu_create_mesh_pipeline_from_metallib :: (metallib_path: string, task_function_name: string, mesh_function_name: string, fragment_function_name: string, desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
+    _ = metallib_path;
+    _ = task_function_name;
+    _ = mesh_function_name;
+    _ = fragment_function_name;
+    _ = desc;
+    log_error("gpu_create_mesh_pipeline_from_metallib is unsupported on Vulkan backend.");
+    return 0;
+}
 gpu_free_pipeline :: (pipeline: Gpu_Pipeline) {
     removed, pipeline := pool_remove(*live_pipelines, pipeline);
     if removed {
