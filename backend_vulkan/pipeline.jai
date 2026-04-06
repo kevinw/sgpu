@@ -70,6 +70,24 @@ gpu_create_graphics_pipeline_from_metallib :: (metallib_path: string, vertex_fun
     return 0;
 }
 
+gpu_create_graphics_pipeline_from_metallib_with_function_constants :: (
+    metallib_path: string,
+    vertex_function_name: string,
+    fragment_function_name: string,
+    raster_desc: Gpu_Raster_Desc,
+    vertex_constants: *void = null,
+    fragment_constants: *void = null
+) -> Gpu_Pipeline {
+    _ = metallib_path;
+    _ = vertex_function_name;
+    _ = fragment_function_name;
+    _ = raster_desc;
+    _ = vertex_constants;
+    _ = fragment_constants;
+    log_error("gpu_create_graphics_pipeline_from_metallib_with_function_constants is unsupported on Vulkan backend.");
+    return 0;
+}
+
 gpu_create_graphics_pipeline_with_function_constants :: (metal: []u8,
                                                          raster_desc: Gpu_Raster_Desc,
                                                          vertex_function_name: string,

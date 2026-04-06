@@ -284,7 +284,39 @@ gpu_create_graphics_pipeline_from_metallib :: (metallib_path: string, vertex_fun
     return _internal_gpu_create_graphics_pipeline_with_names(library, library, raster_desc, vertex_function_name, fragment_function_name);
 }
 
+gpu_create_graphics_pipeline_from_metallib_with_function_constants :: (
+    metallib_path: string,
+    vertex_function_name: string,
+    fragment_function_name: string,
+    raster_desc: Gpu_Raster_Desc,
+    vertex_constants: *MTLFunctionConstantValues = null,
+    fragment_constants: *MTLFunctionConstantValues = null
+) -> Gpu_Pipeline {
+    auto_release_temp();
+    if metallib_path.count == 0 || vertex_function_name.count == 0 || fragment_function_name.count == 0 {
+        log_error("gpu_create_graphics_pipeline_from_metallib_with_function_constants: metallib path/function names missing.");
+        return 0;
+    }
+    library := new_scoped_library_from_file_or_return_0(metallib_path, "graphics metallib");
+    return _internal_gpu_create_graphics_pipeline_with_names_and_constants(
+        library, library, raster_desc, vertex_function_name, fragment_function_name, vertex_constants, fragment_constants);
+}
+
 gpu_create_mesh_pipeline_from_metallib :: (metallib_path: string, task_function_name: string, mesh_function_name: string, fragment_function_name: string, desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
+    return gpu_create_mesh_pipeline_from_metallib_with_function_constants(
+        metallib_path, task_function_name, mesh_function_name, fragment_function_name, desc, null, null, null);
+}
+
+gpu_create_mesh_pipeline_from_metallib_with_function_constants :: (
+    metallib_path: string,
+    task_function_name: string,
+    mesh_function_name: string,
+    fragment_function_name: string,
+    desc: Gpu_Mesh_Pipeline_Desc,
+    task_constants: *MTLFunctionConstantValues = null,
+    mesh_constants: *MTLFunctionConstantValues = null,
+    fragment_constants: *MTLFunctionConstantValues = null
+) -> Gpu_Pipeline {
     auto_release_temp();
     if metallib_path.count == 0 || mesh_function_name.count == 0 || fragment_function_name.count == 0 {
         log_error("gpu_create_mesh_pipeline_from_metallib: metallib path/function names missing.");
@@ -334,21 +366,30 @@ gpu_create_mesh_pipeline_from_metallib :: (metallib_path: string, task_function_
         max_mesh_threads = (mesh_threads.width * mesh_threads.height * mesh_threads.depth).(int);
     }
 
-    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction) -> *MTL4FunctionDescriptor #expand {
+    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction, constants: *MTLFunctionConstantValues) -> *MTL4FunctionDescriptor #expand {
         library_desc := objc_new(MTL4LibraryFunctionDescriptor);
         MTL4LibraryFunctionDescriptor.setLibrary(library_desc, mtl_library);
         MTL4LibraryFunctionDescriptor.setName(library_desc, MTLFunction.name(function));
-        return library_desc;
+        if constants == null return library_desc;
+
+        defer release(library_desc);
+
+        validate_function_constants(function, constants);
+
+        specialized_desc := objc_new(MTL4SpecializedFunctionDescriptor);
+        MTL4SpecializedFunctionDescriptor.setFunctionDescriptor(specialized_desc, library_desc);
+        MTL4SpecializedFunctionDescriptor.setConstantValues(specialized_desc, constants);
+        return specialized_desc;
     }
 
     pipeline_desc := objc_new_defer_release(MTL4MeshRenderPipelineDescriptor);
     {
         using pipeline_desc;
-        setMeshFunctionDescriptor(pipeline_desc, func_desc(library, mesh_function));
+        setMeshFunctionDescriptor(pipeline_desc, func_desc(library, mesh_function, mesh_constants));
         if object_function != null {
-            setObjectFunctionDescriptor(pipeline_desc, func_desc(library, object_function));
+            setObjectFunctionDescriptor(pipeline_desc, func_desc(library, object_function, task_constants));
         }
-        setFragmentFunctionDescriptor(pipeline_desc, func_desc(library, fragment_function));
+        setFragmentFunctionDescriptor(pipeline_desc, func_desc(library, fragment_function, fragment_constants));
         setRasterSampleCount(pipeline_desc, max(1, desc.raster_desc.sample_count).(NSUInteger));
         setMaxTotalThreadsPerMeshThreadgroup(pipeline_desc, max_mesh_threads.(NSUInteger));
         setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);
