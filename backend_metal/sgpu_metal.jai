@@ -265,6 +265,7 @@ Format :: enum {
     BC6H_SFLOAT_BLOCK                              :: 144;
     BC7_UNORM_BLOCK                                :: 145;
     BC7_SRGB_BLOCK                                 :: 146;
+    ASTC_6x6_SFLOAT_BLOCK                          :: 147;
 }
 
 Usage_Flags :: enum_flags {

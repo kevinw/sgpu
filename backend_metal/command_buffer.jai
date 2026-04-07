@@ -21,10 +21,10 @@ gpu_start_command_recording :: (queue_handle: Gpu_Queue) -> Gpu_Result, Gpu_Comm
         queue.command_allocator_reset_frame[allocator_index] = frame_index;
     }
 
-    cmd_buffer := mtl_device.newCommandBuffer(mtl_device);
+    cmd_buffer := queue.command_buffers[allocator_index];
     if cmd_buffer == null {
-        log_error("Failed to create command buffer");
-        return_error(.ERROR_COMMAND_BUFFER_LIMIT_EXCEEDED, 0, "gpu_start_command_recording: get_available_command_buffer returned null");
+        log_error("Failed to get persistent command buffer for queue=% slot=%", queue_handle, allocator_index);
+        return_error(.ERROR_COMMAND_BUFFER_LIMIT_EXCEEDED, 0, "gpu_start_command_recording: persistent command buffer missing");
     }
 
     // Begin the command buffer with the allocator
@@ -741,6 +741,8 @@ init_queues :: () {
         for i: 0..MAX_FRAMES_IN_FLIGHT-1 {
             queue.command_allocators[i] = create_command_allocator(tprint("%_alloc_%", type, i));
             queue.command_allocator_reset_frame[i] = U64_MAX;
+            queue.command_buffers[i] = mtl_device.newCommandBuffer(mtl_device);
+            assert(queue.command_buffers[i] != null, "Failed to create persistent command buffer for % slot %", type, i);
             buf := mtl_device.newBufferWithLength(mtl_device, size_of(Indirect_Params), xx MTLResource.StorageModeShared);
             buf.setLabel(buf, to_temp_nsstring(tprint("sgpu indirect params (%) %", type, i)));
             add_to_residency(buf);
@@ -773,6 +775,9 @@ shutdown_queues :: () {
         release_and_set_null(*it.mtl4_queue);
         for allocator: it.command_allocators {
             if allocator release(allocator);
+        }
+        for cmd_buffer: it.command_buffers {
+            if cmd_buffer release(cmd_buffer);
         }
         for indirect_buffer: it.indirect_param_buffers {
             if indirect_buffer {
@@ -876,7 +881,6 @@ Command_Buffer_Info :: struct {
 free_command_buffer :: (using cmd_info: *Command_Buffer_Info) {
     assert(cmd_buffer != null);
     assert(current_render_encoder == null, "free_command_buffer had active render encoder: cmd_info = %", cmd_info);
-    release(cmd_buffer);
     cmd_buffer = null;
 }
 
@@ -886,6 +890,7 @@ Queue :: struct {
     type: Gpu_Queue_Type;
     command_allocators: [MAX_FRAMES_IN_FLIGHT]*MTL4CommandAllocator;
     command_allocator_reset_frame: [MAX_FRAMES_IN_FLIGHT] u64;
+    command_buffers: [MAX_FRAMES_IN_FLIGHT]*MTL4CommandBuffer;
     indirect_param_buffers: [MAX_FRAMES_IN_FLIGHT]*MTLBuffer;
 }
 

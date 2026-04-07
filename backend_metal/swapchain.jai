@@ -169,7 +169,7 @@ gpu_submit_swapchain_no_present :: (cmd_buff: Gpu_Command_Buffer, signals: [] Gp
         mtl4_queue.waitForEvent(mtl4_queue, semaphore.mtl_event, it.value);
     }
 
-    #if true {
+    #if false {
 
         on_commit_feedback :: (block: *Commit_Feedback_Block, feedback: *MTL4CommitFeedback) #c_call {
             if block == null || block.payload == null return;

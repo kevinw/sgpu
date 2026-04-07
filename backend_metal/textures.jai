@@ -237,6 +237,46 @@ gpu_copy_to_texture :: (dest: Gpu_Texture, src: *void, mip: u32 = 0, layer_slice
     }
 }
 
+gpu_copy_to_texture_layout :: (
+    dest: Gpu_Texture,
+    src: *void,
+    width: u32,
+    height: u32,
+    depth: u32 = 1,
+    bytes_per_row: s64,
+    bytes_per_image: s64 = 0,
+    mip: u32 = 0,
+    layer: u32 = 0,
+) {
+    texture := get_texture(dest);
+    if !texture || !texture.mtl_texture || src == null return;
+
+    region := MTLRegion.{
+        origin = .{ x = 0, y = 0, z = 0 },
+        size = .{
+            width = cast(NSUInteger) max(width, 1),
+            height = cast(NSUInteger) max(height, 1),
+            depth = cast(NSUInteger) max(depth, 1),
+        },
+    };
+
+    if texture.desc.type == ._3D {
+        MTLTexture.replaceRegion(texture.mtl_texture,
+            region,
+            cast(NSUInteger) mip,
+            cast(NSUInteger) layer,
+            src,
+            cast(NSUInteger) max(bytes_per_row, 0),
+            cast(NSUInteger) max(bytes_per_image, 0));
+    } else {
+        MTLTexture.replaceRegion(texture.mtl_texture,
+            region,
+            cast(NSUInteger) mip,
+            src,
+            cast(NSUInteger) max(bytes_per_row, 0));
+    }
+}
+
 gpu_create_sampler :: (desc: Gpu_Sampler_Desc) -> Gpu_Sampler {
     mtl_desc := objc_new(MTLSamplerDescriptor);
     defer release(mtl_desc);
@@ -574,6 +614,7 @@ format_to_mtl :: (format: Format) -> MTLPixelFormat {
         case .BC6H_SFLOAT_BLOCK;    return .BC6H_RGBFloat;
         case .BC7_UNORM_BLOCK;      return .BC7_RGBAUnorm;
         case .BC7_SRGB_BLOCK;       return .BC7_RGBAUnorm_sRGB;
+        case .ASTC_6x6_SFLOAT_BLOCK; return .ASTC_6x6_HDR;
     }
     return .Invalid;
 }
@@ -629,6 +670,7 @@ mtl_to_format :: (mtl_format: MTLPixelFormat) -> Format {
         case .Stencil8;             return .S8_UINT;
         case .Depth24Unorm_Stencil8; return .D24_UNORM_S8_UINT;
         case .Depth32Float_Stencil8; return .D32_SFLOAT_S8_UINT;
+        case .ASTC_6x6_HDR;         return .ASTC_6x6_SFLOAT_BLOCK;
     }
     return .UNDEFINED;
 }
