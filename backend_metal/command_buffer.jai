@@ -266,6 +266,8 @@ gpu_wait_idle :: () {
         assert(it.current_render_encoder == null);
         assert(it.cmd_buffer == null);
     }
+
+    process_deferred_texture_destroys(force = true);
 }
 
 gpu_queue_wait_idle :: (queue_handle: Gpu_Queue) {

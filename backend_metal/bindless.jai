@@ -1,36 +1,72 @@
 #scope_export
 
 BINDLESS_PARAMS_BINDING_INDEX :: 0;
-// Metal bindless textures are exposed to shaders starting at [[texture(1)]], not [[texture(0)]].
-// `Gpu_Texture_View` values remain zero-based shader indices: 0 is the black fallback texture.
-BINDLESS_TEXTURES_BASE_BINDING_INDEX :: 1;
+// Metal bindless textures are split into separate 2D / cube / 3D banks so distinct typed texture arrays
+// can coexist in one shader without overlapping resource locations.
+// `Gpu_Texture_View` values remain zero-based shader indices within each bank: 0 is the fallback slot.
+BINDLESS_TEXTURES_2D_BASE_BINDING_INDEX :: 1;
+BINDLESS_TEXTURES_CUBE_BASE_BINDING_INDEX :: 64;
+BINDLESS_TEXTURES_3D_BASE_BINDING_INDEX :: 64;
 BINDLESS_SAMPLERS_BASE_BINDING_INDEX :: 0;
 
 METAL_MAX_TEXTURE_BINDS :: 128;
-// Reserve one zero-defaulting texture slot while staying within Metal's 128 texture binding limit.
-BINDLESS_TEXTURE_BIND_CAPACITY :: MAX_IMAGES + 1;
-BINDLESS_SAMPLER_BIND_CAPACITY :: MAX_SAMPLERS;
-BINDLESS_TEXTURE_BIND_COUNT :: BINDLESS_TEXTURES_BASE_BINDING_INDEX + BINDLESS_TEXTURE_BIND_CAPACITY;
+// Must stay aligned with the transpiler's bindless array lengths.
+BINDLESS_TEXTURE_BIND_CAPACITY :: 63;
+BINDLESS_SAMPLER_BIND_CAPACITY :: 16;
+BINDLESS_TEXTURE_BIND_COUNT :: BINDLESS_TEXTURES_3D_BASE_BINDING_INDEX + BINDLESS_TEXTURE_BIND_CAPACITY;
 BINDLESS_SAMPLER_BIND_COUNT :: BINDLESS_SAMPLERS_BASE_BINDING_INDEX + BINDLESS_SAMPLER_BIND_CAPACITY;
 
-texture_view_handle_to_bindless_binding :: (view_handle: Gpu_Texture_View) -> NSUInteger {
-    return BINDLESS_TEXTURES_BASE_BINDING_INDEX + cast(NSUInteger) view_handle;
+texture_view_handle_to_bindless_binding :: (base_binding: NSUInteger, view_handle: Gpu_Texture_View) -> NSUInteger {
+    return base_binding + cast(NSUInteger) view_handle;
 }
 
 bindless_set_texture_resource :: (view_handle: Gpu_Texture_View, texture: *MTLTexture) {
-    bind_index := texture_view_handle_to_bindless_binding(view_handle);
-    if bind_index >= BINDLESS_TEXTURE_BIND_COUNT {
-        log_error("Bindless texture handle % exceeds texture bindless capacity %.", view_handle, BINDLESS_TEXTURE_BIND_CAPACITY - 1);
+    resource_id: MTLResourceID = .{};
+    if texture == null {
+        bind_2d := texture_view_handle_to_bindless_binding(BINDLESS_TEXTURES_2D_BASE_BINDING_INDEX, view_handle);
+        bind_cube := texture_view_handle_to_bindless_binding(BINDLESS_TEXTURES_CUBE_BASE_BINDING_INDEX, view_handle);
+        bind_3d := texture_view_handle_to_bindless_binding(BINDLESS_TEXTURES_3D_BASE_BINDING_INDEX, view_handle);
+        if bind_2d < BINDLESS_TEXTURE_BIND_COUNT bindless_texture_resources[bind_2d] = resource_id;
+        if bind_cube < BINDLESS_TEXTURE_BIND_COUNT bindless_texture_resources[bind_cube] = resource_id;
+        if bind_3d < BINDLESS_TEXTURE_BIND_COUNT bindless_texture_resources[bind_3d] = resource_id;
+        bindless_static_generation += 1;
         return;
     }
 
-    resource_id: MTLResourceID = .{};
     if texture_view_pool != null && texture != null {
-        resource_id = texture_view_pool.setTextureView(texture_view_pool, texture, bind_index);
+        texture_type := MTLTexture.textureType(texture);
+        if texture_type == .Cube || texture_type == .CubeArray {
+            bind_index := texture_view_handle_to_bindless_binding(BINDLESS_TEXTURES_CUBE_BASE_BINDING_INDEX, view_handle);
+            if bind_index >= BINDLESS_TEXTURE_BIND_COUNT {
+                log_error("Bindless cube texture handle % exceeds texture bindless capacity %.", view_handle, BINDLESS_TEXTURE_BIND_CAPACITY - 1);
+                return;
+            }
+            resource_id = texture_view_pool.setTextureView(texture_view_pool, texture, bind_index);
+            bindless_texture_resources[bind_index] = resource_id;
+            bindless_static_generation += 1;
+            return;
+        } else if texture_type == ._3D {
+            bind_index := texture_view_handle_to_bindless_binding(BINDLESS_TEXTURES_3D_BASE_BINDING_INDEX, view_handle);
+            if bind_index >= BINDLESS_TEXTURE_BIND_COUNT {
+                log_error("Bindless 3D texture handle % exceeds texture bindless capacity %.", view_handle, BINDLESS_TEXTURE_BIND_CAPACITY - 1);
+                return;
+            }
+            resource_id = texture_view_pool.setTextureView(texture_view_pool, texture, bind_index);
+            bindless_texture_resources[bind_index] = resource_id;
+            bindless_static_generation += 1;
+            return;
+        } else {
+            bind_index := texture_view_handle_to_bindless_binding(BINDLESS_TEXTURES_2D_BASE_BINDING_INDEX, view_handle);
+            if bind_index >= BINDLESS_TEXTURE_BIND_COUNT {
+                log_error("Bindless texture handle % exceeds texture bindless capacity %.", view_handle, BINDLESS_TEXTURE_BIND_CAPACITY - 1);
+                return;
+            }
+            resource_id = texture_view_pool.setTextureView(texture_view_pool, texture, bind_index);
+            bindless_texture_resources[bind_index] = resource_id;
+            bindless_static_generation += 1;
+            return;
+        }
     }
-
-    bindless_texture_resources[bind_index] = resource_id;
-    bindless_static_generation += 1;
 }
 
 bindless_set_sampler_resource :: (sampler_handle: Gpu_Sampler, resource_id: MTLResourceID) {
@@ -158,7 +194,7 @@ make_argument_table :: (desc: *MTL4ArgumentTableDescriptor) -> *MTL4ArgumentTabl
 apply_static_bindings :: (table: *MTL4ArgumentTable) {
     if table == null return;
 
-    for i: BINDLESS_TEXTURES_BASE_BINDING_INDEX..BINDLESS_TEXTURE_BIND_COUNT-1 {
+    for i: BINDLESS_TEXTURES_2D_BASE_BINDING_INDEX..BINDLESS_TEXTURE_BIND_COUNT-1 {
         table.setTexture(table, bindless_texture_resources[i], cast(NSUInteger) i);
     }
     for i: BINDLESS_SAMPLERS_BASE_BINDING_INDEX..BINDLESS_SAMPLER_BIND_COUNT-1 {

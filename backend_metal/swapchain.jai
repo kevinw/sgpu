@@ -104,6 +104,8 @@ gpu_current_swapchain_view :: () -> Gpu_Texture_View {
 }
 
 gpu_swapchain_acquire :: () -> Gpu_Result, Gpu_Texture_View {
+    process_deferred_texture_destroys();
+
     // Wait if the CPU is trying to submit more than MAX_FRAMES_IN_FLIGHT before the GPU can get to them.
     if frame_index >= MAX_FRAMES_IN_FLIGHT {
         value_to_wait := frame_index - MAX_FRAMES_IN_FLIGHT + 1;

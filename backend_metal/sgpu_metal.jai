@@ -682,6 +682,7 @@ remember_allocator :: () {
 
     live_pipelines.allocator = cpu_allocator;
     live_textures.allocator = cpu_allocator;
+    deferred_texture_destroys.allocator = cpu_allocator;
 
     // TODO: more...
 }

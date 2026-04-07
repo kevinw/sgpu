@@ -67,16 +67,10 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []
 }
 
 gpu_free :: (texture_handle: Gpu_Texture) {
-    removed, texture := pool_remove(*live_textures, texture_handle);
-    if removed {
-        if texture.default_view != 0 {
-            release_texture_view_handle(texture.default_view);
-        }
-        if texture.mtl_texture != null {
-            remove_from_residency(xx texture.mtl_texture);
-            release(texture.mtl_texture);
-        }
-    }
+    texture := pool_get(live_textures, texture_handle);
+    if texture == null || texture.pending_destroy return;
+    texture.pending_destroy = true;
+    enqueue_deferred_texture_destroy(texture_handle);
 }
 
 gpu_texture_view :: (texture_handle: Gpu_Texture, view_desc: Gpu_View_Desc = .{}) -> Gpu_Texture_View {
@@ -113,7 +107,7 @@ gpu_black_texture_view :: () -> Gpu_Texture_View {
 
 create_texture_view_handle :: (texture_handle: Gpu_Texture, final_desc: Gpu_View_Desc) -> Gpu_Texture_View {
     texture := pool_get(live_textures, texture_handle);
-    if texture == null return 0;
+    if texture == null || texture.pending_destroy return 0;
 
     format := final_desc.format;
 
@@ -161,9 +155,11 @@ gpu_free_texture_view :: (view_handle: Gpu_Texture_View) {
     if view_handle == 0 return;
     view := get_texture_view(view_handle);
     if !view return;
+    if view.pending_destroy return;
     texture := pool_get(live_textures, view.texture);
     if texture != null && texture.default_view == view_handle return;
-    release_texture_view_handle(view_handle);
+    view.pending_destroy = true;
+    enqueue_deferred_texture_view_destroy(view_handle);
 }
 
 gpu_texture_view_size :: (view_handle: Gpu_Texture_View) -> (width: u32, height: u32, ok: bool) {
@@ -260,7 +256,8 @@ gpu_copy_to_texture_layout :: (
         },
     };
 
-    if texture.desc.type == ._3D {
+    use_slice_upload := texture.desc.type == ._3D || texture.desc.layer_count > 1 || texture.desc.type == .CUBE || texture.desc.type == .CUBE_ARRAY || texture.desc.type == ._2D_ARRAY;
+    if use_slice_upload {
         MTLTexture.replaceRegion(texture.mtl_texture,
             region,
             cast(NSUInteger) mip,
@@ -329,12 +326,14 @@ Texture :: struct {
     desc: Gpu_Texture_Desc;
     mtl_texture: *MTLTexture;
     default_view: Gpu_Texture_View;
+    pending_destroy: bool;
 }
 
 Texture_View :: struct {
     texture: Gpu_Texture;
     mtl_texture: *MTLTexture;
     desc: Gpu_View_Desc;
+    pending_destroy: bool;
 }
 
 Sampler :: struct {
@@ -400,6 +399,62 @@ release_texture_view_handle :: (view_handle: Gpu_Texture_View) {
     }
 }
 
+Deferred_Texture_Destroy_Kind :: enum {
+    TEXTURE;
+    TEXTURE_VIEW;
+}
+
+Deferred_Texture_Destroy :: struct {
+    kind: Deferred_Texture_Destroy_Kind;
+    retire_frame: u64;
+    handle: u32;
+}
+
+enqueue_deferred_texture_destroy :: (texture_handle: Gpu_Texture) {
+    array_add(*deferred_texture_destroys, .{
+        kind = .TEXTURE,
+        retire_frame = gpu_submission_frame_index(),
+        handle = cast(u32) texture_handle,
+    });
+}
+
+enqueue_deferred_texture_view_destroy :: (view_handle: Gpu_Texture_View) {
+    array_add(*deferred_texture_destroys, .{
+        kind = .TEXTURE_VIEW,
+        retire_frame = gpu_submission_frame_index(),
+        handle = cast(u32) view_handle,
+    });
+}
+
+process_deferred_texture_destroys :: (force := false) {
+    completed_frame := gpu_completed_submission_frame_index();
+    write_index: s64 = 0;
+    for item: deferred_texture_destroys {
+        if !force && (completed_frame < 0 || cast(u64) completed_frame < item.retire_frame) {
+            deferred_texture_destroys[write_index] = item;
+            write_index += 1;
+            continue;
+        }
+
+        if item.kind == {
+        case .TEXTURE_VIEW;
+            release_texture_view_handle(cast(Gpu_Texture_View) item.handle);
+        case .TEXTURE;
+            removed, texture := pool_remove(*live_textures, cast(Gpu_Texture) item.handle);
+            if removed {
+                if texture.default_view != 0 {
+                    release_texture_view_handle(texture.default_view);
+                }
+                if texture.mtl_texture != null {
+                    remove_from_residency(xx texture.mtl_texture);
+                    release(texture.mtl_texture);
+                }
+            }
+        }
+    }
+    array_resize(*deferred_texture_destroys, write_index);
+}
+
 init_texture_defaults :: () {
     // Reserve shader texture index 0 as a valid black fallback so zero-initialized material state is safe.
     result, texture := gpu_create_texture(.{
@@ -427,13 +482,18 @@ init_texture_defaults :: () {
 }
 
 shutdown_texture_defaults :: () {
+    process_deferred_texture_destroys(force = true);
     if fallback_black_texture != 0 {
         bindless_set_texture_resource(fallback_black_view_handle, null);
         gpu_free(fallback_black_texture);
         fallback_black_texture = 0;
         fallback_black_view = .{};
     }
+    process_deferred_texture_destroys(force = true);
+    array_reset(*deferred_texture_destroys);
 }
+
+deferred_texture_destroys: [..]Deferred_Texture_Destroy;
 
 sampler_filter_to_mtl_minmag :: (filter: Gpu_Sampler_Desc.Filter) -> MTLSamplerMinMagFilter {
     if filter == .NEAREST return .Nearest;
