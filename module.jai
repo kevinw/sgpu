@@ -14,7 +14,7 @@ Gpu_Ptr :: #type,distinct u64;
 CPU_Struct :: struct (T: Type)  {
     GPU_Type :: T;
 
-    #insert #run -> string {
+    #insert #run,stallable -> string {
         sb: String_Builder;
         for type_info(T).members {
             print_to_builder(*sb, "    %: ", it.name);
@@ -32,7 +32,14 @@ CPU_Struct :: struct (T: Type)  {
                 append(*sb, ";\n");
             }
         }
-        return builder_to_string(*sb);
+
+        output := builder_to_string(*sb);
+
+        //print("------\n");
+        //log("%", output);
+        //print("------\n");
+
+        return output;
     };
 }
 

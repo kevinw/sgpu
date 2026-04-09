@@ -425,6 +425,7 @@ Gpu_Raster_Desc :: struct {
     alpha_to_coverage := false;
     support_dual_source_blending := false;
     sample_count: u8 = 1;
+    derive_attachment_formats_from_render_pass := false;
 
     depth_format: Format = .UNDEFINED;
     stencil_format: Format = .UNDEFINED;

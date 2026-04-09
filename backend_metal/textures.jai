@@ -170,6 +170,15 @@ gpu_texture_view_size :: (view_handle: Gpu_Texture_View) -> (width: u32, height:
     return texture.desc.dimensions[0], texture.desc.dimensions[1], true;
 }
 
+gpu_texture_view_format :: (view_handle: Gpu_Texture_View) -> (format: Format, ok: bool) {
+    view := get_texture_view(view_handle);
+    if !view return .UNDEFINED, false;
+    if view.desc.format != .UNDEFINED return view.desc.format, true;
+    texture := get_texture(view.texture);
+    if !texture return .UNDEFINED, false;
+    return texture.desc.format, true;
+}
+
 gpu_readback_texture_view_bgra8 :: (view_handle: Gpu_Texture_View, out_pixels: []u8, bytes_per_row: s64) -> bool {
     view := get_texture_view(view_handle);
     if !view || !view.mtl_texture return false;

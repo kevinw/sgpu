@@ -131,7 +131,7 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
     return pool_add(*live_pipelines, .{
         type = .GRAPHICS,
         mtl_render_pipeline = render_pipeline,
-        raster_desc = desc.raster_desc,
+        raster_desc = clone_persistent_raster_desc(desc.raster_desc),
         is_mesh_pipeline = true,
         has_mesh_object_stage = object_function != null,
         required_threads_per_object_threadgroup = fallback_threadgroup_size(render_pipeline.requiredThreadsPerObjectThreadgroup(render_pipeline)),
@@ -451,7 +451,7 @@ gpu_create_mesh_pipeline_from_metallib_with_function_constants :: (
     return pool_add(*live_pipelines, .{
         type = .GRAPHICS,
         mtl_render_pipeline = cast(*MTLRenderPipelineState) pipeline_state,
-        raster_desc = desc.raster_desc,
+        raster_desc = clone_persistent_raster_desc(desc.raster_desc),
         is_mesh_pipeline = true,
         has_mesh_object_stage = object_function != null,
         required_threads_per_object_threadgroup = fallback_threadgroup_size(pipeline_state.requiredThreadsPerObjectThreadgroup(pipeline_state)),
@@ -600,7 +600,7 @@ _internal_gpu_create_graphics_pipeline_with_names_and_constants :: (vertex_libra
         type = .GRAPHICS,
         mtl_compute_pipeline = null,
         mtl_render_pipeline = render_pipeline,
-        raster_desc = raster_desc,
+        raster_desc = clone_persistent_raster_desc(raster_desc),
     });
 
     return handle;
@@ -644,6 +644,7 @@ gpu_free_pipeline :: (pipeline_handle: Gpu_Pipeline) {
     if !removed return;
 
     using pipeline;
+    free_persistent_raster_desc(*raster_desc);
     release_and_set_null(*mtl_compute_pipeline);
     release_and_set_null(*mtl_render_pipeline);
 }
@@ -861,6 +862,25 @@ fallback_threadgroup_size :: (size: MTLSize) -> MTLSize {
         return .{ width = 1, height = 1, depth = 1 };
     }
     return size;
+}
+
+clone_persistent_raster_desc :: (src: Gpu_Raster_Desc) -> Gpu_Raster_Desc {
+    dst := src;
+    if src.color_targets.count == 0 return dst;
+
+    push_allocator(cpu_allocator);
+    persistent_targets := NewArray(src.color_targets.count, Color_Target);
+    memcpy(persistent_targets.data, src.color_targets.data, src.color_targets.count * size_of(Color_Target));
+    dst.color_targets = persistent_targets;
+    return dst;
+}
+
+free_persistent_raster_desc :: (desc: *Gpu_Raster_Desc) {
+    if desc == null return;
+    if desc.color_targets.count != 0 && desc.color_targets.data != null {
+        free(desc.color_targets.data,, allocator = cpu_allocator);
+    }
+    desc.color_targets = .{};
 }
 
 // Look up a function by a series of names, returning the first one found.

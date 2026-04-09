@@ -207,6 +207,15 @@ gpu_texture_desc :: (view_hande: Gpu_Texture_View) -> bool, Gpu_Texture_Desc {
     return true, texture.desc;
 }
 
+gpu_texture_view_format :: (view_handle: Gpu_Texture_View) -> (format: Format, ok: bool) {
+    view := get_texture_view(view_handle);
+    if !view return .UNDEFINED, false;
+    if view.desc.format != .UNDEFINED return view.desc.format, true;
+    texture := pool_get(*live_textures, view.texture);
+    if !texture return .UNDEFINED, false;
+    return texture.desc.format, true;
+}
+
 gpu_create_sampler :: (desc: Gpu_Sampler_Desc) -> Gpu_Sampler {
     create_info := VkSamplerCreateInfo.{
         minFilter = desc.min_filter.(VkFilter),
