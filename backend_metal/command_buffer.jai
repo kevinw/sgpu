@@ -308,6 +308,7 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) -
     for desc.color_targets {
         view := get_texture_view(it.view);
         if view == null return .ERROR_INVALID_TEXTURE;
+        #if VALIDATION validation_set_texture_view_access(it.view, .COLOR_ATTACHMENT_WRITE);
 
         if view.mtl_texture != null {
             // Use live Metal texture dimensions (swapchain-backed textures can change independently
@@ -334,6 +335,7 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) -
     if desc.depth_target.view != 0 {
         view := get_texture_view(desc.depth_target.view);
         if view != null {
+            #if VALIDATION validation_set_texture_view_access(desc.depth_target.view, .DEPTH_STENCIL_ATTACHMENT_WRITE);
             if view.mtl_texture != null {
                 // Keep viewport/scissor aligned to the actual depth attachment size.
                 render_width = MTLTexture.width(view.mtl_texture).(u32);
@@ -352,6 +354,7 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) -
     if desc.stencil_target.view != 0 {
         view := get_texture_view(desc.stencil_target.view);
         if view != null {
+            #if VALIDATION validation_set_texture_view_access(desc.stencil_target.view, .DEPTH_STENCIL_ATTACHMENT_WRITE);
             stencil_attachment := MTL4RenderPassDescriptor.stencilAttachment(pass_desc);
             MTLRenderPassStencilAttachmentDescriptor.setTexture(stencil_attachment, view.mtl_texture);
             MTLRenderPassStencilAttachmentDescriptor.setLoadAction(stencil_attachment, load_op_to_mtl(desc.stencil_target.load_op));
@@ -369,6 +372,17 @@ gpu_begin_render_pass :: (cmd: Gpu_Command_Buffer, desc: Gpu_Render_Pass_Desc) -
     }
 
     cmd_info.current_render_encoder = render_encoder;
+    #if VALIDATION {
+        cmd_info.current_color_target_count = min(desc.color_targets.count, cmd_info.current_color_target_views.count);
+        for color_i: 0..cmd_info.current_color_target_count-1 {
+            cmd_info.current_color_target_views[color_i] = desc.color_targets[color_i].view;
+        }
+        for color_i: cmd_info.current_color_target_count .. cmd_info.current_color_target_views.count-1 {
+            cmd_info.current_color_target_views[color_i] = 0;
+        }
+        cmd_info.current_depth_target_view = desc.depth_target.view;
+        cmd_info.current_stencil_target_view = desc.stencil_target.view;
+    }
     //cmd_info.render_width = render_width;
     //cmd_info.render_height = render_height;
 
@@ -391,6 +405,7 @@ gpu_end_render_pass :: (cmd: Gpu_Command_Buffer) {
     if cmd_info == null then return;
 
     end_current_render_encoder(cmd_info);
+    #if VALIDATION clear_current_render_pass_views(cmd_info);
 }
 
 gpu_end_render_pass_with_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Access, after: Pass_Access) {
@@ -398,6 +413,7 @@ gpu_end_render_pass_with_transition :: (cmd: Gpu_Command_Buffer, before: Pass_Ac
     if cmd_info == null then return;
 
     if current_render_encoder != null {
+        #if VALIDATION update_current_render_pass_views_access(cmd_info, after);
         gpu_render_pass_transition(cmd, before, after);
         return;
     }
@@ -878,12 +894,35 @@ Command_Buffer_Info :: struct {
     current_compute_encoder: *MTL4ComputeCommandEncoder;
     current_render_encoder: *MTL4RenderCommandEncoder;
     current_pipeline: Gpu_Pipeline;
+    #if VALIDATION {
+        current_color_target_views: [8]Gpu_Texture_View;
+        current_color_target_count: s64;
+        current_depth_target_view: Gpu_Texture_View;
+        current_stencil_target_view: Gpu_Texture_View;
+    }
 }
 
 free_command_buffer :: (using cmd_info: *Command_Buffer_Info) {
     assert(cmd_buffer != null);
     assert(current_render_encoder == null, "free_command_buffer had active render encoder: cmd_info = %", cmd_info);
     cmd_buffer = null;
+}
+
+#if VALIDATION {
+clear_current_render_pass_views :: (cmd_info: *Command_Buffer_Info) {
+    cmd_info.current_color_target_count = 0;
+    for *cmd_info.current_color_target_views it = 0;
+    cmd_info.current_depth_target_view = 0;
+    cmd_info.current_stencil_target_view = 0;
+}
+
+update_current_render_pass_views_access :: (cmd_info: *Command_Buffer_Info, access: Pass_Access) {
+    for color_i: 0..cmd_info.current_color_target_count-1 {
+        validation_set_texture_view_access(cmd_info.current_color_target_views[color_i], access);
+    }
+    validation_set_texture_view_access(cmd_info.current_depth_target_view, access);
+    validation_set_texture_view_access(cmd_info.current_stencil_target_view, access);
+}
 }
 
 Queue :: struct {

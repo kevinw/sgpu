@@ -92,6 +92,7 @@ gpu_default_texture_view :: (texture_handle: Gpu_Texture) -> Gpu_Texture_View {
 }
 
 gpu_texture_view_index :: (view_handle: Gpu_Texture_View) -> u32 {
+    #if VALIDATION validation_assert_texture_view_sampleable(view_handle);
     // This is the shader-visible index. On Metal the backend still remaps that to [[texture(1 + index)]]
     // because the argument table keeps buffer params at [[buffer(0)]] and textures starting at [[texture(1)]].
     return cast(u32) view_handle;
@@ -343,6 +344,10 @@ Texture_View :: struct {
     mtl_texture: *MTLTexture;
     desc: Gpu_View_Desc;
     pending_destroy: bool;
+    #if VALIDATION {
+        validation_last_access: Pass_Access;
+        validation_last_access_frame: u64;
+    }
 }
 
 Sampler :: struct {
@@ -394,6 +399,27 @@ is_default_texture_view_desc :: (texture_desc: Gpu_Texture_Desc, view_desc: Gpu_
         && view_desc.mip_count == texture_desc.mip_count
         && view_desc.base_layer == 0
         && view_desc.layer_count == texture_desc.layer_count;
+}
+
+#if VALIDATION {
+validation_set_texture_view_access :: (view_handle: Gpu_Texture_View, access: Pass_Access) {
+    if view_handle == 0 || view_handle == fallback_black_view_handle return;
+    view := pool_get(live_texture_views, view_handle);
+    if view == null return;
+    view.validation_last_access = access;
+    view.validation_last_access_frame = gpu_submission_frame_index();
+}
+
+validation_assert_texture_view_sampleable :: (view_handle: Gpu_Texture_View) {
+    if view_handle == 0 || view_handle == fallback_black_view_handle return;
+    view := pool_get(live_texture_views, view_handle);
+    if view == null return;
+    if view.validation_last_access == .COLOR_ATTACHMENT_WRITE || view.validation_last_access == .DEPTH_STENCIL_ATTACHMENT_WRITE {
+        assert(false,
+            "Texture view % sampled while still tracked as %. Add a render-pass transition to SHADER_READ before sampling. last_access_frame=%",
+            view_handle, view.validation_last_access, view.validation_last_access_frame);
+    }
+}
 }
 
 release_texture_view_handle :: (view_handle: Gpu_Texture_View) {
