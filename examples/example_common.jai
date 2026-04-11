@@ -13,7 +13,7 @@ SHOW_MEMORY_LEAKS :: true;
     gpu_example_harness :: () -> Example_Options #expand {
         Debug.init();
         Debug.set_report_mode(interactive = false);
-        
+
         // Change to path of executable.
         path := String.path_strip_filename(System.get_path_of_running_executable());
         set_working_directory(path);
@@ -57,7 +57,7 @@ SHOW_MEMORY_LEAKS :: true;
 #import "Basic"()(
     MEMORY_DEBUGGER=EXTRA_CHECKS,
     VISUALIZE_MEMORY_DEBUGGER=false,
-    TEMP_ALLOCATOR_POISON_FREED_MEMORY=EXTRA_CHECKS,
+    TEMP_ALLOCATOR_OVERWRITE_MEMORY=EXTRA_CHECKS,
 );
 
 #scope_file
