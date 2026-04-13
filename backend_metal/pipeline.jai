@@ -1,6 +1,15 @@
 #scope_export
 
 gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
+    return gpu_create_mesh_pipeline_with_function_constants(desc, null, null, null);
+}
+
+gpu_create_mesh_pipeline_with_function_constants :: (
+    desc: Gpu_Mesh_Pipeline_Desc,
+    task_constants: *MTLFunctionConstantValues = null,
+    mesh_constants: *MTLFunctionConstantValues = null,
+    fragment_constants: *MTLFunctionConstantValues = null
+) -> Gpu_Pipeline {
     auto_release_temp();
     assert(desc.mesh_threads[0] != 0 && desc.mesh_threads[1] != 0 && desc.mesh_threads[2] != 0, "gpu_create_mesh_pipeline requires explicit mesh_threads.");
     assert(desc.pixel_shader.count != 0, "gpu_create_mesh_pipeline requires pixel_shader.");
@@ -18,25 +27,25 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
         release(task_library);
     }
 
-    mesh_function := MTLLibrary.newFunctionWithName(mesh_library, to_temp_nsstring("meshMain"));
+    mesh_function := get_only_function_by_type(mesh_library, .Mesh);
     if mesh_function == null {
-        log_error("Failed to find meshMain in mesh shader library");
+        log_error("Failed to find mesh function in mesh shader library");
         return 0;
     }
     //defer release(mesh_function);
 
-    fragment_function := MTLLibrary.newFunctionWithName(pixel_library, to_temp_nsstring("fragmentMain"));
+    fragment_function := get_only_function_by_type(pixel_library, .Fragment);
     if fragment_function == null {
-        log_error("Failed to find fragmentMain in fragment shader library");
+        log_error("Failed to find fragment function in fragment shader library");
         return 0;
     }
     //defer release(fragment_function);
 
     object_function: *MTLFunction;
     if desc.task_shader.count != 0 {
-        object_function = MTLLibrary.newFunctionWithName(task_library, to_temp_nsstring("objectMain"));
+        object_function = get_only_function_by_type(task_library, .Object);
         if object_function == null {
-            log_error("Failed to find objectMain in task shader library");
+            log_error("Failed to find object function in task shader library");
             return 0;
         }
     } else {
@@ -52,21 +61,30 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
         max_mesh_threads = (mesh_threads.width * mesh_threads.height * mesh_threads.depth).(int);
     }
 
-    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction) -> *MTL4FunctionDescriptor #expand {
+    func_desc :: (mtl_library: *MTLLibrary, function: *MTLFunction, constants: *MTLFunctionConstantValues) -> *MTL4FunctionDescriptor #expand {
         library_desc := objc_new(MTL4LibraryFunctionDescriptor);
         MTL4LibraryFunctionDescriptor.setLibrary(library_desc, mtl_library);
         MTL4LibraryFunctionDescriptor.setName(library_desc, MTLFunction.name(function));
-        return library_desc;
+        if constants == null return library_desc;
+
+        defer release(library_desc);
+
+        validate_function_constants(function, constants);
+
+        specialized_desc := objc_new(MTL4SpecializedFunctionDescriptor);
+        MTL4SpecializedFunctionDescriptor.setFunctionDescriptor(specialized_desc, library_desc);
+        MTL4SpecializedFunctionDescriptor.setConstantValues(specialized_desc, constants);
+        return specialized_desc;
     }
 
     pipeline_desc := objc_new_defer_release(MTL4MeshRenderPipelineDescriptor);
     {
         using pipeline_desc;
-        setMeshFunctionDescriptor(pipeline_desc, func_desc(mesh_library, mesh_function));
+        setMeshFunctionDescriptor(pipeline_desc, func_desc(mesh_library, mesh_function, mesh_constants));
         if object_function != null {
-            setObjectFunctionDescriptor(pipeline_desc, func_desc(task_library, object_function));
+            setObjectFunctionDescriptor(pipeline_desc, func_desc(task_library, object_function, task_constants));
         }
-        setFragmentFunctionDescriptor(pipeline_desc, func_desc(pixel_library, fragment_function));
+        setFragmentFunctionDescriptor(pipeline_desc, func_desc(pixel_library, fragment_function, fragment_constants));
         setRasterSampleCount(pipeline_desc, max(1, desc.raster_desc.sample_count).(NSUInteger));
         setMaxTotalThreadsPerMeshThreadgroup(pipeline_desc, max_mesh_threads.(NSUInteger));
         setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth(pipeline_desc, NO);

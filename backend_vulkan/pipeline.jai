@@ -21,6 +21,19 @@ gpu_create_mesh_pipeline :: (desc: Gpu_Mesh_Pipeline_Desc) -> Gpu_Pipeline {
     return create_graphics_pipeline(shader_stages, desc.raster_desc);
 }
 
+gpu_create_mesh_pipeline_with_function_constants :: (
+    desc: Gpu_Mesh_Pipeline_Desc,
+    task_constants: *void = null,
+    mesh_constants: *void = null,
+    fragment_constants: *void = null
+) -> Gpu_Pipeline {
+    _ = task_constants;
+    _ = mesh_constants;
+    _ = fragment_constants;
+    log_error("gpu_create_mesh_pipeline_with_function_constants is unsupported on Vulkan backend.");
+    return gpu_create_mesh_pipeline(desc);
+}
+
 gpu_get_mesh_pipeline_max_total_threadgroups_per_grid :: (pipeline_handle: Gpu_Pipeline) -> u32 {
     _ = pipeline_handle;
     return 0;
