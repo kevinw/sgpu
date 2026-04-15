@@ -16,6 +16,11 @@ BINDLESS_SAMPLER_BIND_CAPACITY :: 16;
 BINDLESS_TEXTURE_BIND_COUNT :: BINDLESS_TEXTURES_3D_BASE_BINDING_INDEX + BINDLESS_TEXTURE_BIND_CAPACITY;
 BINDLESS_SAMPLER_BIND_COUNT :: BINDLESS_SAMPLERS_BASE_BINDING_INDEX + BINDLESS_SAMPLER_BIND_CAPACITY;
 
+gpu_texture_bindless_capacity_2d :: () -> s32 {
+    // Slot 0 is the fallback black texture, so custom view handles must remain below this count.
+    return BINDLESS_TEXTURE_BIND_CAPACITY;
+}
+
 texture_view_handle_to_bindless_binding :: (base_binding: NSUInteger, view_handle: Gpu_Texture_View) -> NSUInteger {
     return base_binding + cast(NSUInteger) view_handle;
 }

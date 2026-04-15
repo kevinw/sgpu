@@ -1,5 +1,9 @@
 #scope_export
 
+gpu_texture_bindless_capacity_2d :: () -> s32 {
+    return S32_MAX;
+}
+
 gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: [] Gpu_Timeline_Pair = .[]) -> Gpu_Result, Gpu_Texture {
     image_create_info := VkImageCreateInfo.{
         format = desc.format.(VkFormat),
