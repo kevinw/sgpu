@@ -16,22 +16,32 @@ CPU_Struct :: struct (T: Type)  {
 
     #insert #run,stallable -> string {
         sb: String_Builder;
-        for type_info(T).members {
-            print_to_builder(*sb, "    %: ", it.name);
-            if it.type.type == {
-            case .POINTER;
-                append(*sb, "Gpu_Ptr;\n");
-                /*
-                ti_pointer := it.type.(*Type_Info_Pointer);
-                append(*sb, "Typed_Gpu_Ptr(");
-                print_type_to_builder(*sb, ti_pointer.pointer_to);
-                append(*sb, ");\n");
-                */
-            case;
-                print_type_to_builder(*sb, it.type);
-                append(*sb, ";\n");
+        append_member_fields :: (sb: *String_Builder, info: *Type_Info_Struct) {
+            for *info.members {
+                // TODO: here we're flattening the fields manually, but couldn't we just put "using" in front and let the compiler do the work?
+                if (it.flags & .USING) && (it.type.type == .STRUCT) {
+                    append_member_fields(sb, cast(*Type_Info_Struct) it.type);
+                    continue;
+                }
+
+                print_to_builder(sb, "    %: ", it.name);
+                if it.type.type == {
+                case .POINTER;
+                    append(sb, "Gpu_Ptr;\n");
+                    /*
+                    ti_pointer := it.type.(*Type_Info_Pointer);
+                    append(sb, "Typed_Gpu_Ptr(");
+                    print_type_to_builder(sb, ti_pointer.pointer_to);
+                    append(sb, ");\n");
+                    */
+                case;
+                    print_type_to_builder(sb, it.type);
+                    append(sb, ";\n");
+                }
             }
         }
+
+        append_member_fields(*sb, cast(*Type_Info_Struct) type_info(T));
 
         output := builder_to_string(*sb);
 

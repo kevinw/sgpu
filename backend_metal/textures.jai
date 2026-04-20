@@ -23,8 +23,8 @@ gpu_create_texture :: (desc: Gpu_Texture_Desc, optional_signal_texture_ready: []
         setArrayLength(mtl_desc, max(1, desc.layer_count).(NSUInteger));
         setSampleCount(mtl_desc, max(1, desc.sample_count).(NSUInteger));
         setUsage(mtl_desc, mtl_usage);
-        // CPU upload path uses replaceRegion, which requires CPU-visible storage.
-        if desc.usage & Usage_Flags.TRANSFER_DST != 0 {
+        // CPU upload/readback paths require CPU-visible storage.
+        if (desc.usage & (Usage_Flags.TRANSFER_DST | .TRANSFER_SRC)) != 0 {
             setStorageMode(mtl_desc, .Shared);
         } else {
             setStorageMode(mtl_desc, .Private);
