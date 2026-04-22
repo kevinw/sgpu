@@ -93,6 +93,7 @@ gpu_free :: (ptr: *void) {
     // log("after gpu_free(cpu=%), cpu_allocations.count is %", ptr, cpu_allocations.count);
     if !removed {
         log_error("gpu_free: allocation for cpu ptr % not found", ptr);
+        print_stack_trace(context.stack_trace, to_standard_error = true);
         return;
     }
 
